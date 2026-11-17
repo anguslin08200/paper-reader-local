@@ -51,7 +51,7 @@
 ### 5. 其他
 
 - **對話有記憶**：每篇論文的對話存在本機，重開後可以接著追問。
-- **選段落、選名詞**：選一段文字可「解釋這段／翻譯」，只選幾個字會變成「解釋這個名詞」。
+- **選段落、選名詞**：**三擊文字直接選取整段**（依 MinerU 解析的段落邊界；或按選取工具列的「¶ 整段」擴大），可「解釋這段／翻譯」；只選幾個字會變成「解釋這個名詞」。
 - **隨時切換模型**：助手頂部顯示目前模型，點一下切換 Codex／Claude、模型與思考強度。
 - **雙螢幕**：助手可以開成獨立視窗（可最大化、拖到另一個螢幕），也可以收起左欄、把助手拉出浮動。
 - **閱讀器**：適合寬度／頁面、`Ctrl+滾輪` 縮放、`Ctrl+F` 全文搜尋、方向鍵翻頁、高解析度渲染；按 `?` 顯示所有快捷鍵。
@@ -64,10 +64,10 @@
 ```powershell
 git clone https://github.com/<你的帳號>/<repo>.git paper-reader
 cd paper-reader
-powershell -ExecutionPolicy Bypass -File .\setup.ps1 -MinerU
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -MinerU -Translate
 ```
 
-`setup.ps1` 會安裝套件、建置、把 MinerU 安裝到 `tools\mineru`（含模型約 1.5 GB，可省略 `-MinerU` 稍後再裝）、檢查 AI 工具，並在桌面建立「Paper Reader」捷徑。之後雙擊捷徑或執行 `.\Start-Paper-Reader.cmd` 即可（網址 http://127.0.0.1:3080）。
+`setup.ps1` 會安裝套件、建置、把 MinerU 安裝到 `tools\mineru`（含模型約 1.5 GB）、把整篇翻譯用的 `pdf2zh_next` 安裝到 `tools\pdf2zh`（兩者都可省略，稍後再加參數重跑）、檢查 AI 工具，並在桌面建立「Paper Reader」捷徑。之後雙擊捷徑或執行 `.\Start-Paper-Reader.cmd` 即可（網址 http://127.0.0.1:3080）。
 
 ### 需要的外部工具
 
@@ -77,7 +77,7 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1 -MinerU
 | AI 助手（可選） | [Claude Code](https://docs.anthropic.com/claude-code) | 安裝後登入 Claude 訂閱帳號 |
 | PDF 解析 | [MinerU](https://github.com/opendatalab/MinerU) | `setup.ps1 -MinerU` 自動安裝；也可用環境變數 `MINERU_KIT`／`MINERU_HOME` 或在「設定」頁指定 |
 | 選區翻譯（可選） | [Ollama](https://ollama.com/) | `ollama pull hf.co/tencent/Hy-MT2-7B-GGUF:Q4_K_M`；也可改用 Codex／Claude 翻譯 |
-| 整篇翻譯（可選） | [PDFMathTranslate](https://github.com/PDFMathTranslate/PDFMathTranslate-next) | 在「設定」指定 `Translate-PDF.ps1` 腳本路徑 |
+| 整篇翻譯（可選） | [PDFMathTranslate-next](https://github.com/PDFMathTranslate/PDFMathTranslate-next) | `setup.ps1 -Translate` 自動安裝；翻譯服務沿用 Codex／Claude 訂閱或本機 Ollama，橋接腳本在 `pdf-translate/` |
 
 沒裝的工具只會讓對應功能無法使用；閱讀、螢光筆、筆記等功能不受影響。
 
@@ -95,6 +95,7 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1 -MinerU
 | `T` | 加入文字 |
 | `Ctrl+Z`／`Ctrl+Y` | 復原／重做 |
 | `Ctrl+S` | 把標註存進 PDF |
+| 三擊文字 | 選取整段 |
 | `Ctrl`＋點圖表 | 多選附件 |
 | `Ctrl+F` | 搜尋 PDF 全文 |
 | `←` `→`、`PageUp` `PageDown` | 翻頁 |
@@ -111,6 +112,6 @@ npm.cmd start       # 啟動服務（PORT 預設 3080）
 
 ## 授權與致謝
 
-- 本專案以 MIT 授權釋出，改編自 [wenhuahuo/PaperReader](https://github.com/wenhuahuo/PaperReader)（MIT）。
+- 本專案以 MIT 授權釋出（`pdf-translate/` 因使用 AGPL-3.0 的 pdf2zh_next，該資料夾為 AGPL-3.0），改編自 [wenhuahuo/PaperReader](https://github.com/wenhuahuo/PaperReader)（MIT）。
 - 截圖中的論文為 Gu & Dao, *Mamba: Linear-Time Sequence Modeling with Selective State Spaces*（[arXiv:2312.00752](https://arxiv.org/abs/2312.00752)，CC BY 4.0），節錄前 7 頁作為示範，中文譯文由本工具產生。
 - 使用 [pdf.js](https://github.com/mozilla/pdf.js)、[pdf-lib](https://github.com/Hopding/pdf-lib)、[KaTeX](https://katex.org/)、[MinerU](https://github.com/opendatalab/MinerU) 等開源專案。

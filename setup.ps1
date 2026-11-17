@@ -1,7 +1,8 @@
 # Paper Reader one-click setup (Windows).
 #   .\setup.ps1              Install Node packages, build, create the desktop shortcut, check AI tools.
 #   .\setup.ps1 -MinerU      Also install MinerU (PDF parser, ~1.5 GB with models) into tools\mineru.
-param([switch]$MinerU, [switch]$NoShortcut)
+#   .\setup.ps1 -Translate   Also install pdf2zh_next (whole-paper translation) into tools\pdf2zh.
+param([switch]$MinerU, [switch]$Translate, [switch]$NoShortcut)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
@@ -22,14 +23,18 @@ if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 Ok 'Frontend built (dist/)'
 
+# Both Python tools are installed with uv into their own folder under tools\.
+function Ensure-Uv {
+  if (Has 'uv') { return }
+  Warn 'uv not found, installing with winget (astral-sh.uv)...'
+  winget install --id astral-sh.uv -e --accept-source-agreements --accept-package-agreements | Out-Null
+  $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + [Environment]::GetEnvironmentVariable('Path', 'Machine')
+  if (-not (Has 'uv')) { throw 'uv installation failed; install it manually: https://docs.astral.sh/uv/' }
+}
+
 if ($MinerU) {
   Step 'MinerU (PDF parser) -> tools\mineru'
-  if (-not (Has 'uv')) {
-    Warn 'uv not found, installing with winget (astral-sh.uv)...'
-    winget install --id astral-sh.uv -e --accept-source-agreements --accept-package-agreements | Out-Null
-    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + [Environment]::GetEnvironmentVariable('Path', 'Machine')
-    if (-not (Has 'uv')) { throw 'uv installation failed; install it manually: https://docs.astral.sh/uv/' }
-  }
+  Ensure-Uv
   $root = Join-Path $PSScriptRoot 'tools\mineru'
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   Push-Location $root
@@ -45,6 +50,31 @@ if ($MinerU) {
   } finally { Pop-Location }
 } elseif (-not (Test-Path 'tools\mineru\.venv\Scripts\mineru-kit.exe')) {
   Warn 'MinerU not installed (needed for figure lists and full-text AI). Re-run: .\setup.ps1 -MinerU'
+}
+
+if ($Translate) {
+  Step 'pdf2zh_next (whole-paper translation) -> tools\pdf2zh'
+  Ensure-Uv
+  $root = Join-Path $PSScriptRoot 'tools\pdf2zh'
+  New-Item -ItemType Directory -Force -Path $root | Out-Null
+  Push-Location $root
+  try {
+    & uv venv .venv --python 3.12
+    $env:VIRTUAL_ENV = Join-Path $root '.venv'
+    & uv pip install -r (Join-Path $PSScriptRoot 'pdf-translate\requirements.txt')
+    if ($LASTEXITCODE -ne 0) { throw 'pdf2zh_next install failed.' }
+    Remove-Item Env:VIRTUAL_ENV
+    # pdf2zh_next caps the CLI translator timeout at 300 s; local models (and the bridge's
+    # 1800 s request) need more, so raise only that field's limit in the pinned version.
+    $model = Join-Path $root '.venv\Lib\site-packages\pdf2zh_next\config\translate_engine_model.py'
+    $source = [IO.File]::ReadAllText($model)
+    $patched = [regex]::Replace($source, '(clitranslator_timeout: int = Field\([^)]*?)le=300,', '${1}le=1800,')
+    if ($patched -ne $source) { [IO.File]::WriteAllText($model, $patched); Ok 'pdf2zh_next timeout limit raised to 1800 s' }
+    elseif ($source -notmatch 'le=1800') { Warn 'Could not raise the pdf2zh_next timeout limit; translation may fail validation.' }
+    Ok 'Whole-paper translation ready (pdf-translate\Translate-PDF.ps1 finds tools\pdf2zh).'
+  } finally { Pop-Location }
+} elseif (-not (Test-Path 'tools\pdf2zh\.venv\Scripts\python.exe')) {
+  Warn 'Whole-paper translation not installed (optional). Re-run: .\setup.ps1 -Translate'
 }
 
 Step 'AI assistants (use your existing subscriptions, no API key)'

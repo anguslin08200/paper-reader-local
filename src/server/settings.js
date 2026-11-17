@@ -32,7 +32,8 @@ const defaultSettings = {
   agent: { provider: 'codex', model: '', thinking: 'medium', claudeModel: 'sonnet', claudeEffort: '' },
   pdfTranslation: {
     provider: 'Codex',
-    scriptPath: fileURLToPath(new URL('../../../PDFMathTranslate/Translate-PDF.ps1', import.meta.url)),
+    // Bundled bridge (pdf-translate/); its Python env comes from setup.ps1 -Translate.
+    scriptPath: fileURLToPath(new URL('../../pdf-translate/Translate-PDF.ps1', import.meta.url)),
     effort: 'low', parallel: 8, model: '',
   },
   prompts: {

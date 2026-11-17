@@ -1713,7 +1713,7 @@ function flashAttachmentCard() {
 }
 
 // After a mouse/keyboard selection in the PDF, show it as an attachment with explain/translate actions.
-function captureTextSelection(additive = false) {
+function captureTextSelection(additive = false, { paragraph = false } = {}) {
   if (state.cropMode) return;
   const selection = window.getSelection();
   const text = selection?.toString().replace(/\s+/g, ' ').trim();
@@ -1721,11 +1721,12 @@ function captureTextSelection(additive = false) {
   const page = (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement)?.closest('.pdf-page');
   const pageNumber = Number(page?.dataset.page) || state.page;
   // Short selections (a few words) are treated as a term; longer ones as a passage.
-  const isTerm = text.length <= 40 && text.split(/\s+/).length <= 5;
+  // A whole-paragraph selection (triple-click / 整段) is always a passage, even if short.
+  const isTerm = !paragraph && text.length <= 40 && text.split(/\s+/).length <= 5;
   state.selectedText = text;
   const attachment = {
     kind: isTerm ? 'term' : 'passage', text, label: isTerm ? text : `「${text.slice(0, 28)}${text.length > 28 ? '…' : ''}」`,
-    page: pageNumber, meta: `第 ${pageNumber} 頁 · 選取${isTerm ? '名詞' : `段落（${text.length} 字）`}`, thumb: null,
+    page: pageNumber, meta: `第 ${pageNumber} 頁 · 選取${isTerm ? '名詞' : `${paragraph ? '整段' : '段落'}（${text.length} 字）`}`, thumb: null,
   };
   const attached = setAttachment(attachment, additive);
   showAssistantTab('chat');
@@ -1804,6 +1805,118 @@ $('pdfPages').addEventListener('mouseup', (event) => {
   window.setTimeout(() => { if (gesture === selectionGesture) captureTextSelection(additive); }, 0);
 });
 $('pdfPages').addEventListener('keyup', (event) => { if (event.shiftKey) captureTextSelection(event.ctrlKey || event.metaKey); });
+
+// ---------------------------------------------------------------------------
+// Paragraph selection: triple-click text, or press 「¶ 整段」 on the selection toolbar, to select
+// whole paragraphs. Boxes come from MinerU's parsed layout; without a parse, nearby lines of the
+// same column are grouped by geometry.
+// ---------------------------------------------------------------------------
+
+// Leaf text spans of a page's pdf.js text layer, in document (reading) order.
+function textSpans(page) {
+  return [...page.querySelectorAll('.textLayer span')].filter((span) => !span.querySelector('span') && span.textContent.trim());
+}
+
+// MinerU paragraph box (normalized to the displayed page) containing point (x, y), or null.
+async function parsedParagraphBox(pageNumber, x, y) {
+  if (!state.selectedPaper) return null;
+  const dual = isGeneratedDual();
+  // Mono Chinese keeps the original layout, so original-page boxes apply to it as well.
+  const sameLayout = state.pdfVariant === parsedVariant() || (state.pdfVariant === 'chinese' && parsedVariant() === 'original');
+  if (!dual && !sameLayout) return null;
+  const offset = dual && x >= 0.5 ? 0.5 : 0;
+  const px = dual ? (x - offset) * 2 : x;
+  try {
+    // The generatedDual form returns raw parsed blocks with their boxes.
+    const { blocks = [] } = await request(`/api/papers/${state.selectedPaper.id}/counterpart`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: pageNumber, rect: { x: px, y, w: 0.0005, h: 0.0005 }, generatedDual: true }),
+    });
+    if (!blocks.length) return null;
+    // The smallest containing block is the paragraph (not a surrounding section).
+    const [x0, y0, x1, y1] = blocks.map((block) => block.bbox).sort((a, b) => (a[2] - a[0]) * (a[3] - a[1]) - (b[2] - b[0]) * (b[3] - b[1]))[0];
+    return dual ? [x0 / 2 + offset, y0, x1 / 2 + offset, y1] : [x0, y0, x1, y1];
+  } catch { return null; }
+}
+
+// Fallback without a parse: extend from the clicked line while lines stay close and in its column.
+function geometricParagraph(spans, index, pageRect) {
+  const rectOf = (span) => span.getBoundingClientRect();
+  const origin = rectOf(spans[index]);
+  const center = pageRect.left + pageRect.width / 2;
+  // Lines wider than half the page mean a single-column layout.
+  const side = origin.width > pageRect.width * 0.5 ? 0 : (origin.left + origin.width / 2 < center ? -1 : 1);
+  const sameColumn = (rect) => side === 0 || (side < 0 ? rect.left + rect.width / 2 < center : rect.left + rect.width / 2 >= center);
+  const walk = (step) => {
+    let last = index; let lastRect = origin;
+    for (let i = index + step; i >= 0 && i < spans.length; i += step) {
+      const rect = rectOf(spans[i]);
+      if (!sameColumn(rect)) break;
+      const lineHeight = Math.max(4, Math.min(rect.height, lastRect.height));
+      // Same line, or the next line with no blank-line gap in between.
+      const gap = step > 0 ? rect.top - lastRect.bottom : lastRect.top - rect.bottom;
+      if (Math.abs(rect.top - lastRect.top) > lineHeight * 0.5 && (gap > lineHeight * 0.75 || gap < -lineHeight * 3)) break;
+      last = i; lastRect = rect;
+    }
+    return last;
+  };
+  return [walk(-1), walk(1)];
+}
+
+// Index range [first, last] of the spans belonging to the paragraph that contains `span`.
+async function paragraphSpanRange(page, spans, span) {
+  const pageRect = page.getBoundingClientRect();
+  const index = spans.indexOf(span);
+  if (index < 0) return null;
+  const rect = span.getBoundingClientRect();
+  const x = (rect.left + rect.width / 2 - pageRect.left) / pageRect.width;
+  const y = (rect.top + rect.height / 2 - pageRect.top) / pageRect.height;
+  const box = await parsedParagraphBox(Number(page.dataset.page), x, y);
+  if (box) {
+    const inside = spans.map((item, i) => {
+      const r = item.getBoundingClientRect();
+      const cx = (r.left + r.width / 2 - pageRect.left) / pageRect.width;
+      const cy = (r.top + r.height / 2 - pageRect.top) / pageRect.height;
+      return cx >= box[0] - 0.01 && cx <= box[2] + 0.01 && cy >= box[1] - 0.006 && cy <= box[3] + 0.01 ? i : -1;
+    }).filter((i) => i >= 0);
+    if (inside.includes(index)) return [inside[0], inside.at(-1)];
+  }
+  return geometricParagraph(spans, index, pageRect);
+}
+
+// Select from the paragraph of startSpan to the paragraph of endSpan and attach it as a passage.
+async function selectParagraphs(startSpan, endSpan = startSpan, additive = false) {
+  const page = startSpan?.closest('.pdf-page');
+  if (!page || endSpan.closest('.pdf-page') !== page) return;
+  const spans = textSpans(page);
+  const first = await paragraphSpanRange(page, spans, startSpan);
+  const last = endSpan === startSpan ? first : await paragraphSpanRange(page, spans, endSpan);
+  if (!first || !last) return;
+  const from = spans[Math.min(first[0], last[0])]; const to = spans[Math.max(first[1], last[1])];
+  const range = document.createRange();
+  range.setStart(from.firstChild || from, 0);
+  range.setEnd(to.firstChild || to, (to.firstChild || to).textContent.length);
+  const selection = window.getSelection();
+  selection.removeAllRanges(); selection.addRange(range);
+  captureTextSelection(additive, { paragraph: true });
+  showSelectionToolbar();
+}
+
+// Leaf text span at a DOM boundary point (selection anchors are usually text nodes).
+function spanAtNode(node) {
+  const element = node?.nodeType === 1 ? node : node?.parentElement;
+  const span = element?.closest?.('.textLayer span');
+  return span && !span.querySelector('span') ? span : null;
+}
+
+$('pdfPages').addEventListener('click', (event) => {
+  if (event.detail !== 3 || state.cropMode) return;
+  const span = spanAtNode(event.target);
+  if (!span) return;
+  // Cancel the pending capture of the browser's own triple-click (single line) selection.
+  ++selectionGesture;
+  selectParagraphs(span, span, event.ctrlKey || event.metaKey);
+});
 setupElementHover();
 
 // ---------------------------------------------------------------------------
@@ -1895,6 +2008,8 @@ function showSelectionToolbar() {
   const captured = capturePendingSelection();
   if (!captured) return hideSelectionToolbar();
   const { range } = captured;
+  // Kept for 「¶ 整段」, since pressing a toolbar button can disturb the live selection.
+  state.toolbarRange = range.cloneRange();
   const box = range.getBoundingClientRect();
   const toolbar = $('selectionToolbar');
   toolbar.hidden = false;
@@ -2073,6 +2188,12 @@ $('readerStage').addEventListener('scroll', hideSelectionToolbar);
 $('selectionToolbar').addEventListener('mousedown', (event) => event.preventDefault()); // keep the selection
 for (const swatch of document.querySelectorAll('#selectionToolbar .swatch')) swatch.addEventListener('click', () => createHighlight(swatch.dataset.color));
 $('selectionNote').addEventListener('click', () => createHighlight('yellow', { openNote: true }));
+// Expand the current selection to the whole paragraph(s) it touches.
+$('selectionParagraph').addEventListener('click', () => {
+  const range = state.toolbarRange;
+  if (!range) return;
+  selectParagraphs(spanAtNode(range.startContainer), spanAtNode(range.endContainer) || spanAtNode(range.startContainer));
+});
 $('selectionExplain').addEventListener('click', () => {
   hideSelectionToolbar();
   const action = [...$('attachmentActions').querySelectorAll('button')].find((button) => /^解釋/.test(button.textContent));
