@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Reader</title>
+    <!-- A self-contained favicon avoids a spurious missing-resource error in local installs. -->
+    <link rel="icon" type="image/png" href="/icon.png" />
+  </head>
+  <body>
+    <div id="appShell" class="app-shell">
+      <aside class="sidebar left-sidebar">
+        <div class="brand"><span class="brand-mark">P</span><div><strong>Paper Reader</strong><small>AI 輔助閱讀</small></div><button id="collapseLeft" class="icon-button" type="button" title="收起側欄">«</button></div>
+        <!-- Slim rail shown while the library sidebar is collapsed. -->
+        <div class="sidebar-rail">
+          <button id="expandLeft" class="icon-button" type="button" title="展開側欄">»</button>
+          <button id="railUpload" class="icon-button" type="button" title="匯入 PDF">＋</button>
+          <button id="railHelp" class="icon-button" type="button" title="使用說明">?</button>
+          <button id="railSettings" class="icon-button" type="button" title="設定">⚙</button>
+        </div>
+        <!-- Group both import methods for the guided tour's spotlight. -->
+        <div id="importTools">
+        <div class="sidebar-actions">
+          <button id="uploadButton" class="primary-button">匯入 PDF</button>
+          <input id="fileInput" type="file" accept="application/pdf" hidden />
+          <button id="folderButton" class="ghost-button">新增資料夾</button>
+        </div>
+        <form id="arxivForm" class="arxiv-form">
+          <input id="arxivInput" type="url" placeholder="貼上 arXiv 連結" />
+          <button type="submit">匯入</button>
+        </form>
+        </div>
+        <!-- Filter locally so typing never waits for the server. -->
+        <input id="librarySearch" type="search" placeholder="搜尋標題或作者" aria-label="搜尋文獻庫" />
+        <div id="libraryStatus" class="status-line"></div>
+        <div id="libraryTree" class="library-tree"></div>
+        <div class="sidebar-footer"><button id="helpButton" class="settings-button">使用說明</button><button id="shortcutsButton" class="settings-button" title="快捷鍵（?）">快捷鍵</button><button id="settingsButton" class="settings-button">⚙ 設定</button></div>
+      </aside>
+
+      <main class="reader-column">
+        <header class="reader-header">
+          <div>
+            <div id="paperMeta" class="eyebrow">選擇一篇論文開始閱讀</div>
+            <h1 id="paperTitle">Paper Reader</h1>
+          </div>
+          <div class="reader-controls">
+            <button id="previousPage" title="上一頁">↑</button>
+            <span><input id="pageInput" type="number" min="1" value="1" /> / <span id="pageCount">—</span></span>
+            <button id="nextPage" title="下一頁">↓</button>
+            <button id="zoomOut">−</button>
+            <span id="zoomLabel">100%</span>
+            <button id="zoomIn">+</button>
+            <!-- Fit modes use the available reader pane, including collapsed sidebars. -->
+            <button id="fitWidth" class="reader-tool">適合寬度</button>
+            <button id="fitPage" class="reader-tool">適合頁面</button>
+            <!-- Local translation can be overridden per selection without editing saved settings. -->
+            <select id="selectionProvider" title="選區翻譯方式"><option value="">預設翻譯</option><option value="ollama">Ollama 翻譯</option><option value="codex">用 Codex 翻譯</option><option value="claude">用 Claude 翻譯</option></select>
+            <button id="translateSelection" class="reader-tool">翻譯選區</button>
+            <button id="cropToggle" class="reader-tool" title="在 PDF 上拖曳框出要解釋的區域">框選區域</button>
+          </div>
+        </header>
+        <!-- Background jobs leave the original PDF available throughout processing. -->
+        <div class="document-tools">
+          <span id="parseStatus" role="status">未選擇論文</span><button id="retryParse">重新解析</button>
+          <button id="translatePdf">整篇翻譯（PDFMathTranslate）</button>
+          <select id="pdfVariant" aria-label="PDF 版本"><option value="original">原文</option><option value="chinese" disabled>中文</option><option value="bilingual" disabled>雙語</option></select>
+          <span id="pdfTranslationStatus" role="status"></span>
+          <span id="sourceNotice" class="source-notice" role="status" hidden></span>
+          <button id="textAnnotationMode" type="button" title="新增文字註記（T）">T 文字</button>
+          <button id="annotationUndo" type="button" title="復原（Ctrl+Z）" disabled>↶ 復原</button>
+          <button id="annotationRedo" type="button" title="重做（Ctrl+Y）" disabled>↷ 重做</button>
+          <button id="saveAnnotated" type="button" title="儲存標註 PDF（Ctrl+S）">儲存 <span id="annotationDirty" class="annotation-dirty" title="有未儲存的標註" aria-label="有未儲存的標註" hidden>●</span></button>
+          <button id="exportAnnotated" type="button" title="把螢光筆與註記寫入 PDF（Adobe Acrobat 可直接看到與編輯）">匯出標註 PDF</button>
+          <details id="jobDetails" hidden><summary>任務詳情</summary><pre id="jobLog"></pre></details>
+        </div>
+        <!-- Visible instructions while crop mode is active. -->
+        <div id="cropHint" class="crop-hint" hidden>在 PDF 上拖曳框出要解釋的區域（圖、表、演算法或公式）· <kbd>Esc</kbd> 取消</div>
+        <!-- PDF search is independent of browser search and scans the selected PDF variant. -->
+        <form id="pdfSearchBar" class="pdf-search-bar" role="search" hidden>
+          <input id="pdfSearchInput" type="search" placeholder="搜尋 PDF 文字" aria-label="搜尋 PDF 文字" autocomplete="off" />
+          <span id="pdfSearchCount" role="status" aria-live="polite">第 0 / 0 筆</span>
+          <button id="searchPrevious" type="button" title="上一筆（Shift+Enter）">↑</button>
+          <button id="searchNext" type="submit" title="下一筆（Enter）">↓</button>
+          <button id="searchClose" type="button" title="關閉搜尋（Esc）">關閉</button>
+        </form>
+        <section class="reader-stage" id="readerStage">
+          <div class="empty-state" id="emptyReader">從左側匯入或選擇一篇論文</div>
+          <div class="pdf-pages" id="pdfPages" hidden></div>
+        </section>
+        <section id="translationPanel" class="translation-panel" hidden>
+          <div class="panel-heading"><span>獨立翻譯</span><span id="translationStatus" class="muted"></span></div>
+          <div id="translationResult" class="translation-result"></div>
+        </section>
+      </main>
+
+      <aside class="sidebar right-sidebar">
+        <header class="chat-header">
+          <div><div class="eyebrow">PAPER ASSISTANT</div><h2>論文助手</h2></div>
+          <button id="newConversation" class="ghost-button">新對話</button>
+          <!-- Export preserves Markdown source rather than rendered HTML. -->
+          <button id="exportChat" class="ghost-button icon-only" type="button" title="匯出對話（Markdown）">⤓</button>
+          <!-- Detach the assistant into a floating window, or dock it back to the right. -->
+          <button id="floatAssistant" class="ghost-button icon-only" type="button" title="拉出成浮動視窗（拖到最右邊會自動放回）">⧉</button>
+          <!-- Separate OS window (Document Picture-in-Picture) that can be moved to a second monitor. -->
+          <button id="popoutAssistant" class="ghost-button icon-only" type="button" title="開成獨立視窗，可拖到另一個螢幕">🖥</button>
+          <span id="agentStatus" class="agent-status">就緒</span>
+        </header>
+        <!-- Current assistant model; the popover switches provider/model/effort without opening settings. -->
+        <div class="model-row">
+          <button id="modelBadge" class="model-badge" type="button" aria-haspopup="true" aria-expanded="false" title="切換助手模型">載入模型中…</button>
+          <!-- Conversation memory status for the current paper. -->
+          <div id="memoryNote" class="memory-note"></div>
+          <div id="modelMenu" class="model-menu" hidden>
+            <label>助手<select id="quickProvider"><option value="codex">Codex</option><option value="claude">Claude</option><option value="pi">Pi</option></select></label>
+            <label>模型<select id="quickModel"></select></label>
+            <label id="quickEffortField">思考強度<select id="quickEffort"></select></label>
+            <p id="quickModelNote" class="muted"></p>
+          </div>
+        </div>
+        <div class="assistant-tabs" role="tablist">
+          <button id="tabChat" role="tab" aria-selected="true" data-tab="chat">對話</button>
+          <button id="tabElements" role="tab" aria-selected="false" data-tab="elements">圖表清單</button>
+          <button id="tabNotes" role="tab" aria-selected="false" data-tab="notes">筆記</button>
+        </div>
+        <!-- All highlights and notes for this paper; clicking one jumps to it. -->
+        <section id="notesPanel" class="notes-panel" hidden>
+          <div class="notes-header"><span id="notesCount" class="muted"></span><button id="exportNotes" type="button" class="ghost-button">匯出筆記 Markdown</button><button id="exportAnnotatedFromNotes" type="button" class="ghost-button">匯出含標註的 PDF</button></div>
+          <div id="notesList" class="notes-list"></div>
+        </section>
+        <!-- MinerU figures/tables/algorithms/equations; clicking one jumps there and attaches its source. -->
+        <section id="elementsPanel" class="elements-panel" hidden>
+          <div id="elementFilter" class="element-filter">
+            <button data-kind="all" class="active">全部</button><button data-kind="figure">圖</button><button data-kind="table">表</button><button data-kind="algorithm">演算法</button><button data-kind="equation">公式</button>
+          </div>
+          <div id="elementList" class="element-list"><p class="muted">選擇論文並完成解析後，這裡會列出所有圖、表、演算法與公式。</p></div>
+        </section>
+        <div id="contextChips" class="context-chips"></div>
+        <!-- The jump control moves with the assistant, including its separate window. -->
+        <div id="chatViewport" class="chat-viewport">
+          <div id="chatMessages" class="chat-messages">
+            <div class="welcome-card"><strong>從論文中提問</strong><p>概括全文、精讀章節，或框選圖表後讓我解釋。</p></div>
+          </div>
+          <button id="jumpToLatest" type="button" class="jump-to-latest" hidden>↓ 跳到最新</button>
+        </div>
+        <!-- Explicit, ordered attachments show exactly what accompanies a typed question. -->
+        <div id="attachmentCard" class="attachment-card" hidden>
+          <div class="attachment-heading"><strong id="attachmentTitle" role="status" aria-live="polite"></strong><button id="attachmentRemove" class="ghost-button" type="button">全部清除</button></div>
+          <div id="attachmentList" class="attachment-list" aria-label="這次提問的附件"></div>
+          <small id="attachmentHint" class="muted"></small>
+          <div id="attachmentActions" class="attachment-actions"></div>
+        </div>
+        <div class="quick-actions">
+          <button data-task="summary" data-prompt="請概括這篇論文的研究問題、方法、主要結果和侷限。">概括全文</button>
+          <button data-task="section" data-prompt="請精讀目前頁對應的章節，解釋關鍵概念和論證邏輯。">精讀目前章節</button>
+          <button data-open-elements="true">選圖表來解釋</button>
+        </div>
+        <form id="chatForm" class="chat-composer">
+          <!-- Explanation depth is shared by typed questions and attachment actions. -->
+          <button id="answerDetailBadge" type="button" class="answer-detail-badge" title="點一下切換簡單、中度、詳細">深度：中度</button>
+          <textarea id="chatInput" rows="3" placeholder="詢問論文內容…（Enter 傳送，Ctrl+Enter 換行）"></textarea>
+          <div class="composer-row">
+            <label class="attach-button">新增圖片<input id="imageInput" type="file" accept="image/*" hidden /></label>
+            <span id="imageStatus" class="muted"></span>
+            <!-- Abort moves with the assistant into its independent window. -->
+            <button id="stopAnswer" type="button" class="ghost-button" hidden>停止</button>
+            <button type="submit" class="send-button">傳送</button>
+          </div>
+        </form>
+      </aside>
+    </div>
+    <!-- Visual hint while dragging the floating assistant toward the right edge to dock it. -->
+    <div id="dockHint" class="dock-hint" hidden>放開即可放回右側</div>
+    <!-- Floating highlighter toolbar shown next to a PDF text selection (Adobe-style). -->
+    <div id="selectionToolbar" class="selection-toolbar" hidden role="toolbar" aria-label="螢光筆">
+      <button data-color="yellow" class="swatch swatch-yellow" title="黃色螢光筆"></button>
+      <button data-color="green" class="swatch swatch-green" title="綠色螢光筆"></button>
+      <button data-color="pink" class="swatch swatch-pink" title="粉紅色螢光筆"></button>
+      <button data-color="blue" class="swatch swatch-blue" title="藍色螢光筆"></button>
+      <span class="toolbar-divider"></span>
+      <button id="selectionNote" type="button" title="畫重點並加註記">✎ 註記</button>
+      <button id="selectionExplain" type="button" title="請論文助手解釋">解釋</button>
+    </div>
+    <!-- Clicking an existing highlight opens its note editor. -->
+    <div id="highlightPopover" class="highlight-popover" hidden role="dialog" aria-label="螢光筆註記">
+      <div class="popover-head"><span id="highlightPage" class="muted"></span><button id="highlightClose" type="button" class="attachment-remove" title="關閉">×</button></div>
+      <blockquote id="highlightText"></blockquote>
+      <textarea id="highlightNote" rows="4" placeholder="寫下你的筆記…（Ctrl+Enter 儲存）"></textarea>
+      <div class="popover-actions">
+        <span class="popover-swatches"><button data-color="yellow" class="swatch swatch-yellow"></button><button data-color="green" class="swatch swatch-green"></button><button data-color="pink" class="swatch swatch-pink"></button><button data-color="blue" class="swatch swatch-blue"></button></span>
+        <button id="highlightAsk" type="button" class="ghost-button">問 AI</button>
+        <button id="highlightDelete" type="button" class="ghost-button danger">刪除</button>
+        <button id="highlightSave" type="button" class="send-button">儲存</button>
+      </div>
+    </div>
+    <div id="paperMenu" class="context-menu" hidden>
+      <!-- Existing imports can be corrected without moving or reimporting their PDF. -->
+      <button data-action="mark-translated">標記為已翻譯版</button>
+      <button data-action="mark-original">標記為英文原文</button>
+      <button data-action="reindex">重新解析 / 重建索引</button>
+      <button data-action="delete" class="danger-action">刪除論文</button>
+    </div>
+    <div id="folderMenu" class="context-menu" hidden>
+      <button data-action="rename">重新命名</button>
+      <button data-action="new-child">新增子資料夾</button>
+      <button data-action="import">匯入論文</button>
+      <button data-action="delete" class="danger-action">刪除資料夾</button>
+    </div>
+    <section id="settingsView" class="settings-view" hidden>
+      <header class="settings-header"><div><div class="eyebrow">PAPER READER</div><h1>助手設定</h1></div><button id="closeSettings" class="ghost-button">返回閱讀</button></header>
+      <form id="settingsForm" class="settings-form">
+        <label>標註 PDF 儲存資料夾（留空使用預設位置）<input id="annotationExportDirectory" type="text" /></label>
+        <!-- All providers remain explicit; local defaults do not require API keys. -->
+        <section class="settings-card"><h2>選區翻譯</h2><p class="settings-help">預設使用本機 Ollama；Codex / Claude 使用現有訂閱登入額度。譯文使用台灣繁體中文。</p>
+          <label>翻譯方式<select id="translationProvider"><option value="ollama">Ollama / OpenAI 相容介面</option><option value="codex">Codex</option><option value="claude">Claude</option></select></label>
+          <!-- Keep subscription aliases separate from the local Ollama model setting. -->
+          <label id="translationClaudeModelField" hidden>Claude 翻譯模型<input id="translationClaudeModel" list="claudeModels" placeholder="sonnet（預設），也可自填" /></label>
+          <label>Base URL<input id="translationBaseUrl" type="url" placeholder="https://api.openai.com/v1" /></label>
+          <label>模型名稱<input id="translationModel" placeholder="gpt-4o-mini" /></label>
+          <label>API Key<input id="translationApiKey" type="password" placeholder="已配置時留空保持" /></label>
+        </section>
+        <section class="settings-card"><h2>論文閱讀模型</h2><p class="settings-help">Codex / Claude 使用現有訂閱登入，唯讀讀取論文全文與圖片。Pi 為可選後端。</p>
+          <label>助手<select id="agentProvider"><option value="codex">Codex（預設）</option><option value="claude">Claude</option><option value="pi">Pi</option></select></label>
+          <p id="piStatus" class="settings-help" role="status"></p>
+          <label id="agentModelField">模型<input id="agentModel" list="agentModels" placeholder="留空使用目前預設模型" /><datalist id="agentModels"></datalist></label>
+          <label id="claudeModelField" hidden>Claude 模型<input id="claudeModel" list="claudeModels" placeholder="sonnet（預設），也可自填" /></label>
+          <!-- Claude CLI --effort; empty keeps the CLI default. -->
+          <label id="claudeEffortField" hidden>Claude 思考強度<select id="claudeEffort"><option value="">預設</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></label>
+          <datalist id="claudeModels"><option value="sonnet"></option><option value="opus"></option><option value="haiku"></option></datalist>
+          <button id="refreshModels" type="button">讀取 Codex 模型列表</button><span id="modelStatus" class="muted"></span>
+          <label id="agentThinkingField">思考強度<select id="agentThinking"><option value="off">off</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></label>
+        </section>
+        <section class="settings-card"><h2>PDF 解析與全文檢索</h2>
+          <label>解析後端<select id="parserProvider"><option value="mineru">MinerU（本機）</option><option value="zhipu">智譜 Expert（需要 API key）</option></select></label>
+          <label>MinerU 程式<input id="mineruExecutable" /></label><label>MINERU_HOME<input id="mineruHome" /></label><label>MinerU 快取目錄（選填，唯讀複用）<input id="mineruCacheDirectory" /></label>
+          <label>檢索方式<select id="retrievalProvider"><option value="bm25">BM25（本機，免 key）</option><option value="embedding">智譜 embedding（需要 API key）</option></select></label>
+          <label>智譜解析 Base URL<input id="parserBaseUrl" type="url" /></label><label>智譜解析 API Key<input id="parserApiKey" type="password" placeholder="留空保持" /></label>
+          <label>Embedding Base URL<input id="embeddingBaseUrl" type="url" /></label><label>Embedding 模型<input id="embeddingModel" /></label><label>Embedding API Key<input id="embeddingApiKey" type="password" placeholder="留空保持" /></label>
+        </section>
+        <section class="settings-card"><h2>整篇翻譯（PDFMathTranslate）</h2><p class="settings-help">背景生成中文與雙語 PDF。Codex / Claude 會使用已有帳號額度；Local 使用本機模型。</p>
+          <label>Provider<select id="pdfTranslationProvider"><option value="Codex">Codex</option><option value="Local">Local</option><option value="Claude">Claude</option></select></label>
+          <label>Translate-PDF.ps1 路徑<input id="pdfTranslationScript" /></label>
+          <label>模型（留空使用腳本預設值）<input id="pdfTranslationModel" placeholder="Local 可填現有 Ollama 模型名稱" /></label>
+          <label>思考強度<input id="pdfTranslationEffort" value="low" /></label><label>並行數<input id="pdfTranslationParallel" type="number" min="1" max="8" value="8" /></label>
+        </section>
+        <section class="settings-card settings-prompts"><h2>Prompt Templates</h2><p class="settings-help">Codex、Claude 與 Pi 共用以下任務提示。</p>
+          <label>概括全文<textarea id="summaryPrompt" rows="4"></textarea></label>
+          <label>精讀目前章節<textarea id="sectionPrompt" rows="4"></textarea></label>
+          <label>解釋這張圖<textarea id="figurePrompt" rows="4"></textarea></label>
+          <label>普通問答<textarea id="questionPrompt" rows="4"></textarea></label>
+          <!-- Shared comparison instructions apply to all assistant providers. -->
+          <label>比較多個附件<textarea id="comparePrompt" rows="4"></textarea></label>
+          <!-- Element-specific templates used by the figure list and attachment quick actions. -->
+          <label>這張表的重點<textarea id="tablePrompt" rows="4"></textarea></label>
+          <label>逐步解釋演算法<textarea id="algorithmPrompt" rows="8"></textarea></label>
+          <label>解釋公式與符號<textarea id="equationPrompt" rows="4"></textarea></label>
+          <label>用例子說明<textarea id="examplePrompt" rows="4"></textarea></label>
+          <label>解釋這段（選取段落）<textarea id="passagePrompt" rows="4"></textarea></label>
+          <label>解釋這個名詞（選取名詞）<textarea id="termPrompt" rows="4"></textarea></label>
+          <!-- Medium keeps the task template; these instructions refine depth and examples. -->
+          <label>簡單說明指示<textarea id="detailSimplePrompt" rows="3"></textarea></label>
+          <label>詳細說明指示<textarea id="detailDetailedPrompt" rows="4"></textarea></label>
+          <label>簡單舉例指示<textarea id="exampleSimplePrompt" rows="3"></textarea></label>
+          <label>完整舉例指示<textarea id="exampleFullPrompt" rows="4"></textarea></label>
+        </section>
+        <div class="settings-actions"><span id="settingsStatus" class="muted"></span><button type="submit" class="primary-button">儲存設定</button></div>
+      </form>
+    </section>
+    <!-- A native modal supplies focus containment and Escape cancellation for imports. -->
+    <dialog id="importDialog" class="import-dialog" aria-labelledby="importTitle" aria-describedby="importDetection">
+      <form id="importOptions">
+        <h2 id="importTitle">確認匯入論文</h2>
+        <p id="importFileName" class="import-filename"></p>
+        <p id="importDetection" class="import-detection" role="status"></p>
+        <fieldset><legend>檔案類型（可修改自動判斷）</legend>
+          <label><input id="importOriginal" type="radio" name="sourceKind" value="original" checked />這是英文原文</label>
+          <label><input id="importTranslated" type="radio" name="sourceKind" value="translated" />這是已翻譯版（中文或雙語）</label>
+        </fieldset>
+        <label id="importVariantField" hidden>已翻譯版類型 <select id="importVariant"><option value="bilingual">雙語</option><option value="chinese">純中文</option></select></label>
+        <label id="importAutoField" class="import-auto"><input id="importAutoTranslate" type="checkbox" />匯入後自動整篇翻譯成中文與雙語（PDFMathTranslate，會使用設定中的翻譯服務額度）</label>
+        <p id="importQualityNote" class="import-quality" hidden>已翻譯版仍會解析一次供論文助手使用。解析與問答品質可能較原文差，建議上傳英文原文；無需再整篇翻譯。</p>
+        <div class="dialog-actions"><button id="cancelImport" type="button" class="ghost-button">取消</button><button id="confirmImport" type="submit" class="primary-button" disabled>匯入</button></div>
+      </form>
+    </dialog>
+    <!-- Four shade panels leave the spotlight clear while blocking background interaction. -->
+    <div id="tourOverlay" class="tour-overlay" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText" hidden>
+      <div class="tour-shade"></div><div class="tour-shade"></div><div class="tour-shade"></div><div class="tour-shade"></div>
+      <div id="tourHighlight" class="tour-highlight"></div>
+      <section id="tourBubble" class="tour-bubble">
+        <div id="tourProgress" class="eyebrow" aria-live="polite"></div>
+        <h2 id="tourTitle"></h2><p id="tourText"></p>
+        <div class="tour-actions"><button id="tourSkip" class="ghost-button">跳過</button><button id="tourPrevious" class="ghost-button">上一步</button><button id="tourNext" class="primary-button">下一步</button></div>
+        <small>← → 切換步驟 · Esc 關閉</small>
+      </section>
+    </div>
+    <!-- Native dialog keeps focus within the shortcut reference. -->
+    <dialog id="shortcutsDialog" class="import-dialog shortcuts-dialog" aria-labelledby="shortcutsTitle">
+      <h2 id="shortcutsTitle">快捷鍵對照表</h2>
+      <dl>
+        <dt><kbd>H</kbd></dt><dd>將選取文字畫重點</dd>
+        <dt>左鍵＋右鍵</dt><dd>選字時按右鍵，快速畫重點</dd>
+        <dt>滑鼠側鍵</dt><dd>將選取文字畫重點</dd>
+        <dt><kbd>Ctrl+F</kbd></dt><dd>搜尋 PDF（支援中文與英文）</dd>
+        <dt><kbd>T</kbd></dt><dd>切換文字註記工具</dd>
+        <dt><kbd>Ctrl+Z</kbd>／<kbd>Ctrl+Y</kbd></dt><dd>復原／重做標註（也可用 Ctrl+Shift+Z 重做）</dd>
+        <dt><kbd>Ctrl+S</kbd></dt><dd>儲存含標註的 PDF</dd>
+        <dt><kbd>←</kbd> / <kbd>→</kbd><br /><kbd>PageUp</kbd> / <kbd>PageDown</kbd></dt><dd>上一頁 / 下一頁</dd>
+        <dt><kbd>Home</kbd> / <kbd>End</kbd></dt><dd>第一頁 / 最後一頁</dd>
+        <dt><kbd>Ctrl</kbd>＋滾輪</dt><dd>以游標位置縮放 PDF</dd>
+        <dt><kbd>Enter</kbd> / <kbd>Shift+Enter</kbd></dt><dd>搜尋下一筆 / 上一筆（搜尋框內）</dd>
+        <dt><kbd>Esc</kbd></dt><dd>關閉搜尋、註記、快捷鍵說明，或取消框選</dd>
+        <dt><kbd>Ctrl+Enter</kbd></dt><dd>儲存註記；助手輸入框內換行</dd>
+        <dt><kbd>?</kbd></dt><dd>開啟本表（輸入框外）</dd>
+      </dl>
+      <form method="dialog" class="dialog-actions"><button class="primary-button">關閉</button></form>
+    </dialog>
+    <div id="textAnnotationToolbar" class="text-annotation-toolbar" hidden>
+      <label>顏色 <select id="textColor"><option value="#000000">黑</option><option value="#ffffff">白</option><option value="#d32f2f">紅</option><option value="#ef6c00">橘</option><option value="#f9a825">黃</option><option value="#2e7d32">綠</option><option value="#1565c0">藍</option><option value="#6a1b9a">紫</option><option value="#ad1457">粉紅</option></select></label><input id="textCustomColor" type="color" value="#000000" aria-label="自訂顏色">
+      <label>字型 <select id="textFont"></select></label><label>大小 <input id="textSize" type="number" min="8" max="48" value="14"> pt</label>
+      <button id="textBold" type="button">粗體</button><button id="textItalic" type="button">斜體</button><label>背景 <select id="textBackground"><option value="none">無</option><option value="yellow">黃色</option></select></label><button id="textDelete" type="button">刪除</button>
+    </div>
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

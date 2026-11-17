@@ -1,0 +1,15 @@
+node_modules/
+dist/
+# Local data: papers, parses, chats, highlights and settings never leave your computer.
+.runtime/
+.local-check/
+# MinerU installed by setup.ps1 (~1.5 GB with models).
+tools/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.local
+.vscode/
+.idea/
