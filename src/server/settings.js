@@ -93,6 +93,8 @@ export function mergeSettings(saved = {}) {
       thinking: saved.agent?.thinking ?? ((saved.agent?.provider === 'pi' ? process.env.PI_THINKING : process.env.PAPER_READER_CODEX_EFFORT) ?? defaultSettings.agent.thinking),
     },
     pdfTranslation: { ...defaultSettings.pdfTranslation, ...(saved.pdfTranslation ?? {}) },
+    // Joke question shown on every launch (on by default) until answered 否 with 「不再顯示」 checked.
+    startupQuestion: saved.startupQuestion !== false,
     prompts: migratePrompts({ ...defaultSettings.prompts, ...(saved.prompts ?? {}) }),
   };
 }
@@ -127,6 +129,7 @@ export async function saveAppSettings(patch) {
     rag: { ...current.rag, ...(patch.rag ?? {}) },
     agent: { ...current.agent, ...(patch.agent ?? {}) },
     pdfTranslation: { ...current.pdfTranslation, ...(patch.pdfTranslation ?? {}) },
+    startupQuestion: typeof patch.startupQuestion === 'boolean' ? patch.startupQuestion : current.startupQuestion,
     prompts: { ...current.prompts, ...(patch.prompts ?? {}) },
   });
   // Concurrent requests must never read a truncated settings document.
@@ -164,6 +167,7 @@ export function publicSettings(settings) {
     },
     agent: settings.agent,
     pdfTranslation: settings.pdfTranslation,
+    startupQuestion: settings.startupQuestion,
     prompts: settings.prompts,
   };
 }

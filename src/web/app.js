@@ -2931,3 +2931,52 @@ document.addEventListener('keydown', (event) => {
 });
 // keepalive submits the last page even when the tab closes before its debounce expires.
 window.addEventListener('pagehide', flushReadingPosition);
+
+// ---------------------------------------------------------------------------
+// Startup question (on by default: settings.startupQuestion). Asked on every launch with no explanation.
+// 是 + 確定 shuts the whole "city" down (skyline goes dark, server stops, window closes);
+// 否 + 確定 does nothing, and with 「不再顯示」 checked it is never asked again.
+// ---------------------------------------------------------------------------
+async function askStartupQuestion() {
+  let settings;
+  try { settings = await request('/api/settings'); } catch { return; }
+  if (!settings.startupQuestion) return;
+  const dialog = $('startupQuestion');
+  const radios = [...dialog.querySelectorAll('input[name="startupAnswer"]')];
+  radios.forEach((radio) => radio.addEventListener('change', () => { $('startupConfirm').disabled = false; }));
+  // The question must be answered: Esc cannot dismiss it.
+  dialog.addEventListener('cancel', (event) => event.preventDefault());
+  dialog.addEventListener('close', async () => {
+    const answer = radios.find((radio) => radio.checked)?.value;
+    if (answer === 'yes') return shutDownCity();
+    if (answer === 'no' && $('startupHide').checked) {
+      try { await request('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startupQuestion: false }) }); } catch { /* Asked again next time. */ }
+    }
+  }, { once: true });
+  dialog.showModal();
+}
+
+function shutDownCity() {
+  const overlay = $('cityShutdown');
+  const skyline = overlay.querySelector('.city-skyline');
+  // Random buildings with lit windows; each window switches off at a random moment.
+  for (let i = 0; i < 26; i++) {
+    const building = document.createElement('div');
+    building.className = 'city-building';
+    building.style.height = `${25 + Math.random() * 60}%`;
+    for (let w = 0; w < 24; w++) {
+      const light = document.createElement('i');
+      light.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`;
+      building.append(light);
+    }
+    skyline.append(building);
+  }
+  overlay.hidden = false;
+  window.setTimeout(async () => {
+    overlay.classList.add('dark');
+    try { await request('/api/shutdown', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); } catch { /* Already stopped. */ }
+    // App windows opened by the launcher may close themselves; a normal tab just stays dark.
+    window.setTimeout(() => window.close(), 1500);
+  }, 3200);
+}
+askStartupQuestion();

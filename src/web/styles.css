@@ -364,3 +364,22 @@ body.pip-body #floatAssistant { display: none; }
 .chat-header { gap: 6px; flex-wrap: nowrap; }
 .chat-header > div:first-child { margin-right: auto; }
 .chat-header .ghost-button.icon-only { width: 32px; padding: 6px 0; text-align: center; font-size: 15px; }
+
+/* Startup question: plain modal, no explanation. */
+.startup-question { border: 0; border-radius: 14px; padding: 26px 30px 20px; min-width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.startup-question::backdrop { background: rgba(15, 23, 42, .55); }
+.startup-question p { margin: 0 0 18px; font-size: 18px; font-weight: 600; }
+.startup-choices { display: flex; gap: 28px; margin-bottom: 18px; font-size: 16px; }
+.startup-choices label, .startup-hide { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.startup-hide { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+
+/* 「整個城市 shut down」: windows go dark one by one, then the whole screen. */
+.city-shutdown { position: fixed; inset: 0; z-index: 10000; background: linear-gradient(#0b1026, #1e2a4a); display: flex; flex-direction: column; justify-content: flex-end; transition: background 1.2s; }
+.city-shutdown[hidden] { display: none !important; }
+.city-shutdown p { position: absolute; top: 40%; width: 100%; text-align: center; margin: 0; color: #f8fafc; font-size: 34px; letter-spacing: .2em; opacity: 0; transition: opacity 1s .6s; }
+.city-shutdown.dark { background: #000; }
+.city-shutdown.dark p { opacity: 1; }
+.city-skyline { display: flex; align-items: flex-end; gap: 6px; height: 70%; padding: 0 12px; }
+.city-building { flex: 1; background: #111827; display: grid; grid-template-columns: repeat(2, 1fr); align-content: start; gap: 9px 7px; padding: 12px 8px; overflow: hidden; }
+.city-building i { height: 12px; background: #fde68a; box-shadow: 0 0 8px #fbbf24; animation: city-off .2s forwards; }
+@keyframes city-off { to { background: #1f2937; box-shadow: none; } }

@@ -322,6 +322,20 @@
       <button id="textBold" type="button">粗體</button><button id="textItalic" type="button">斜體</button><label>背景 <select id="textBackground"><option value="none">無</option><option value="yellow">黃色</option></select></label><button id="textDelete" type="button">刪除</button>
     </div>
     <div id="toast" class="toast" hidden></div>
+    <!-- Startup question (on by default, settings.startupQuestion): no explanation, just 是／否. -->
+    <dialog id="startupQuestion" class="startup-question" aria-labelledby="startupQuestionText">
+      <form method="dialog">
+        <p id="startupQuestionText">你是否有偷走最好朋友的前女友？</p>
+        <div class="startup-choices">
+          <label><input type="radio" name="startupAnswer" value="yes" />是</label>
+          <label><input type="radio" name="startupAnswer" value="no" />否</label>
+        </div>
+        <label class="startup-hide"><input id="startupHide" type="checkbox" />不再顯示這個問題</label>
+        <div class="dialog-actions"><button id="startupConfirm" class="primary-button" value="ok" disabled>確定</button></div>
+      </form>
+    </dialog>
+    <!-- 「整個城市 shut down」: the skyline goes dark, then the app stops. -->
+    <div id="cityShutdown" class="city-shutdown" hidden><div class="city-skyline"></div><p>城市已關閉</p></div>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
