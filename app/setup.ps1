@@ -141,4 +141,7 @@ if (-not $NoShortcut) {
   & (Join-Path $PSScriptRoot 'Create-Desktop-Shortcut.ps1')
 }
 
+# Optional checks above (e.g. "codex login status" when not signed in) may leave a non-zero exit code;
+# reaching this line means setup succeeded.
+$global:LASTEXITCODE = 0
 Write-Host "`n完成！之後雙擊 Paper Reader.exe 或桌面的「Paper Reader」捷徑即可開啟。" -ForegroundColor Green
