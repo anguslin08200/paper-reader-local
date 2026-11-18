@@ -2946,8 +2946,7 @@ startupDialog.addEventListener('cancel', (event) => event.preventDefault());
 startupDialog.addEventListener('close', async () => {
   const answer = startupRadios.find((radio) => radio.checked)?.value;
   if (answer === 'yes') return lockProgram();
-  // Answering 否 (e.g. via 靈魂拷問 while locked) gives the program back.
-  if (answer === 'no') { unlockProgram?.(); showWelcome(); }
+  if (answer === 'no') showWelcome();
   if (answer === 'no' && $('startupHide').checked) await saveStartupQuestion(false);
 });
 
@@ -2992,10 +2991,9 @@ const MEMES = ['6️⃣7️⃣', 'SIX SEVEN', '67 67 67', '🤲 six 🤲 seven',
   '朋友的前女友？！', '🤯', '📉 人品 -67', '😱', 'ERROR 67', '🤡', '⚠️ 友情已斷線', '🔥🔥🔥', '67?!', '🐐❓', '👀'];
 
 // 是: memes bounce around and the overlay swallows every click and key press, so the program
-// can no longer be used; only the 靈魂拷問 icon stays clickable (answering 否 unlocks).
-let unlockProgram = null;
+// can no longer be used (reloading or reopening starts over with the question).
 function lockProgram() {
-  if (unlockProgram) return;
+  if (document.querySelector('.meme-chaos')) return;
   const layer = document.createElement('div');
   layer.className = 'meme-chaos';
   document.body.append(layer);
@@ -3030,16 +3028,8 @@ function lockProgram() {
     layer.style.background = `hsl(${(t / 25) % 360} 90% 50% / .2)`;
     // Shake for the first 8 seconds, then just drift.
     document.body.classList.toggle('meme-shake', t < 8000 && Math.floor(t / 250) % 2 === 0);
-    if (running) requestAnimationFrame(frame);
+    requestAnimationFrame(frame);
   };
-  let running = true;
   requestAnimationFrame(frame);
-  unlockProgram = () => {
-    running = false;
-    layer.remove();
-    document.body.classList.remove('meme-shake');
-    for (const type of ['keydown', 'keyup', 'keypress', 'wheel', 'contextmenu']) window.removeEventListener(type, block, { capture: true });
-    unlockProgram = null;
-  };
 }
 askStartupQuestion();

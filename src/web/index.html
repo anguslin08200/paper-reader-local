@@ -57,6 +57,8 @@
             <select id="selectionProvider" title="選區翻譯方式"><option value="">預設翻譯</option><option value="ollama">Ollama 翻譯</option><option value="codex">用 Codex 翻譯</option><option value="claude">用 Claude 翻譯</option></select>
             <button id="translateSelection" class="reader-tool">翻譯選區</button>
             <button id="cropToggle" class="reader-tool" title="在 PDF 上拖曳框出要解釋的區域">框選區域</button>
+            <!-- 靈魂拷問: asks the startup question again and turns it back on for the next launch. -->
+            <button id="soulQuestion" class="soul-question" type="button" title="靈魂拷問" aria-label="靈魂拷問">?</button>
           </div>
         </header>
         <!-- Background jobs leave the original PDF available throughout processing. -->
@@ -322,8 +324,6 @@
       <button id="textBold" type="button">粗體</button><button id="textItalic" type="button">斜體</button><label>背景 <select id="textBackground"><option value="none">無</option><option value="yellow">黃色</option></select></label><button id="textDelete" type="button">刪除</button>
     </div>
     <div id="toast" class="toast" hidden></div>
-    <!-- 靈魂拷問: asks the startup question again and turns it back on for the next launch. -->
-    <button id="soulQuestion" class="soul-question" type="button" title="靈魂拷問" aria-label="靈魂拷問">?</button>
     <!-- Startup question (on by default, settings.startupQuestion): no explanation, just 是／否. -->
     <dialog id="startupQuestion" class="startup-question" aria-labelledby="startupQuestionText">
       <form method="dialog">
