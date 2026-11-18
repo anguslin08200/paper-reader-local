@@ -17,13 +17,21 @@ jobs:
       run:
         shell: powershell
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Node.js already on the runner (setup must upgrade it if older than 24)
         run: if (Get-Command node -ErrorAction SilentlyContinue) { node --version } else { 'no node' }
 
+      # Errors are also written as ::error:: annotations, which are readable without signing in.
       - name: First-time setup (same as the exe's install step, without prompts)
-        run: .\app\setup.ps1 -MinerU -Translate -NoShortcut -NoPrompt
+        run: |
+          try {
+            .\app\setup.ps1 -MinerU -Translate -NoShortcut -NoPrompt *>&1 | Tee-Object -FilePath setup.log
+          } catch {
+            Write-Output "::error::setup failed: $($_.Exception.Message) (at $($_.InvocationInfo.PositionMessage -replace '\r?\n', ' '))"
+            Get-Content setup.log -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.Trim()) { Write-Output "::error::$_" } }
+            exit 1
+          }
 
       - name: Unit tests
         working-directory: app
