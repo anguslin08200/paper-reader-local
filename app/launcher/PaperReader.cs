@@ -1,4 +1,5 @@
 // Paper Reader.exe: the one file to double-click.
+// Lives at the top of the Paper Reader folder, beside app\ (program files), or inside it.
 // - Not installed yet (no node_modules): offers to run setup.ps1 in a visible window, then starts.
 // - Installed: runs Start-Paper-Reader.ps1 hidden (server + app window); errors show in a message box.
 // Build with scripts\build-launcher.ps1 (uses the C# compiler that ships with Windows).
@@ -28,9 +29,12 @@ static class Launcher
     static int Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+        // Program files are normally in the app\ folder beside this exe.
+        string app = Path.Combine(root, "app");
+        if (File.Exists(Path.Combine(app, "Start-Paper-Reader.ps1"))) root = app;
         if (!File.Exists(Path.Combine(root, "Start-Paper-Reader.ps1")))
         {
-            MessageBox.Show("請把 Paper Reader.exe 放在 Paper Reader 資料夾裡（與 Start-Paper-Reader.ps1 同一層）再執行。", Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("找不到程式檔案。請把 Paper Reader.exe 放在 Paper Reader 資料夾最上層（旁邊要有 app 資料夾）再執行。", Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
         if (!Directory.Exists(Path.Combine(root, "node_modules")) && !Install(root)) return 1;
@@ -41,7 +45,7 @@ static class Launcher
     static bool Install(string root)
     {
         DialogResult answer = MessageBox.Show(
-            "Paper Reader 還沒安裝。\n\n要現在安裝嗎？會開啟安裝視窗，安裝套件、PDF 解析（MinerU）與整篇翻譯工具，約需 2 GB 空間與數分鐘。\n\n需要先安裝 Node.js 24 以上。",
+            "Paper Reader 還沒安裝。\n\n要現在安裝嗎？會開啟安裝視窗，安裝套件、PDF 解析（MinerU）與整篇翻譯工具，約需 2 GB 空間與數分鐘。\n\n電腦沒有 Node.js 的話，安裝程式會自動安裝。",
             Title, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return false;
         // cmd keeps the window open on failure so the error can be read.

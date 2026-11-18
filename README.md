@@ -4,6 +4,18 @@
 
 > 介面為台灣繁體中文，以 Windows + Chrome／Edge 為主要環境。改編自 [wenhuahuo/PaperReader](https://github.com/wenhuahuo/PaperReader)（MIT）。
 
+## 🚀 三步開始使用
+
+### [⬇ 下載 Paper Reader（ZIP）](../../archive/refs/heads/main.zip)
+
+1. 點上面的連結下載 ZIP，**解壓縮**到任何資料夾（例如「文件」）。
+2. 打開資料夾，**雙擊 `Paper Reader.exe`**（藍底白色「P」圖示，資料夾裡唯一的程式）。
+3. 第一次會問「要現在安裝嗎？」→ 按 **是**。安裝視窗會自動裝好需要的東西（Node.js、PDF 解析、翻譯工具，約 2 GB），並引導你登入 ChatGPT（Codex）。裝好後自動開啟，之後雙擊 exe 或桌面捷徑即可。
+
+> 需要：Windows 10／11、網路，以及 ChatGPT（Codex）或 Claude 訂閱其中一個。
+> 第一次執行時 Windows 可能跳出「Windows 已保護您的電腦」（exe 沒有付費數位簽章）：按 **其他資訊 → 仍要執行**。
+> 每次更新都會在[全新的 Windows 上自動測試](../../actions)「下載 → 安裝 → 開啟」整個流程。
+
 ![整體畫面：左邊閱讀論文，右邊 AI 助手整理全文摘要](docs/images/overview.png)
 
 ## 主要功能
@@ -59,25 +71,28 @@
 
 ## 安裝
 
-需要 Windows、[Node.js](https://nodejs.org/) 24 以上，以及 Chrome 或 Edge。
+上面的「三步開始使用」就是完整安裝流程。資料夾結構：
 
-1. 下載本專案：右上角 **Code → Download ZIP** 後解壓縮，或用 `git clone`。
-2. **雙擊資料夾裡的 `Paper Reader.exe`**（藍底白色「P」圖示）。第一次會詢問是否安裝，按「是」後會開啟安裝視窗，裝好就自動開啟。
-3. 之後每次使用：雙擊 `Paper Reader.exe` 或桌面上的「Paper Reader」捷徑。
+```
+Paper Reader\
+├─ Paper Reader.exe   ← 只要點這個
+├─ README.md
+└─ app\               ← 程式本體（不用動）
+```
 
-> 下載 ZIP 的 exe 沒有數位簽章，Windows 可能跳出「Windows 已保護您的電腦」：按「其他資訊 → 仍要執行」。不放心的話可以用 `scripts\build-launcher.ps1` 從 `launcher\PaperReader.cs` 自行編譯（只用 Windows 內建的 C# 編譯器）。
+`Paper Reader.exe` 第一次執行時會呼叫 `app\setup.ps1 -MinerU -Translate`（也可以自己執行）：缺 Node.js 會自動安裝、安裝套件與建置、把 MinerU 裝到 `app\tools\mineru`（含模型約 1.5 GB）、把整篇翻譯用的 `pdf2zh_next` 裝到 `app\tools\pdf2zh`、安裝並引導登入 Codex CLI，最後在桌面建立「Paper Reader」捷徑。程式在 http://127.0.0.1:3080 執行，以沒有網址列的 App 視窗開啟。
 
-安裝內容（`setup.ps1 -MinerU -Translate`，也可以手動執行）：安裝套件與建置、把 MinerU 安裝到 `tools\mineru`（含模型約 1.5 GB）、把整篇翻譯用的 `pdf2zh_next` 安裝到 `tools\pdf2zh`、檢查 AI 工具，並在桌面建立「Paper Reader」捷徑。程式在 http://127.0.0.1:3080 執行，以沒有網址列的 App 視窗開啟。
+想自己編譯 exe：執行 `app\scripts\build-launcher.ps1`，會用 Windows 內建的 C# 編譯器把 `app\launcher\PaperReader.cs` 編成 `Paper Reader.exe`。
 
 ### 需要的外部工具
 
 | 用途 | 工具 | 說明 |
 |---|---|---|
-| AI 助手（預設） | [Codex CLI](https://github.com/openai/codex) | `npm install -g @openai/codex`，再 `codex login`（使用 ChatGPT 訂閱） |
+| AI 助手（預設） | [Codex CLI](https://github.com/openai/codex) | 安裝程式會自動安裝並引導 `codex login`（使用 ChatGPT 訂閱） |
 | AI 助手（可選） | [Claude Code](https://docs.anthropic.com/claude-code) | 安裝後登入 Claude 訂閱帳號 |
-| PDF 解析 | [MinerU](https://github.com/opendatalab/MinerU) | `setup.ps1 -MinerU` 自動安裝；也可用環境變數 `MINERU_KIT`／`MINERU_HOME` 或在「設定」頁指定 |
+| PDF 解析 | [MinerU](https://github.com/opendatalab/MinerU) | 安裝程式自動安裝；也可用環境變數 `MINERU_KIT`／`MINERU_HOME` 或在「設定」頁指定 |
 | 選區翻譯（可選） | [Ollama](https://ollama.com/) | `ollama pull hf.co/tencent/Hy-MT2-7B-GGUF:Q4_K_M`；也可改用 Codex／Claude 翻譯 |
-| 整篇翻譯（可選） | [PDFMathTranslate-next](https://github.com/PDFMathTranslate/PDFMathTranslate-next) | `setup.ps1 -Translate` 自動安裝；翻譯服務沿用 Codex／Claude 訂閱或本機 Ollama，橋接腳本在 `pdf-translate/` |
+| 整篇翻譯（可選） | [PDFMathTranslate-next](https://github.com/PDFMathTranslate/PDFMathTranslate-next) | 安裝程式自動安裝；翻譯服務沿用 Codex／Claude 訂閱或本機 Ollama，橋接腳本在 `app/pdf-translate/` |
 
 沒裝的工具只會讓對應功能無法使用；閱讀、螢光筆、筆記等功能不受影響。
 
@@ -85,7 +100,7 @@
 
 - **建議匯入英文原文**：解析與 AI 回答品質最好；要看中文再用「整篇翻譯」。已翻譯的雙語 PDF 也能匯入，系統會自動辨識並停用重複翻譯。
 - **解析只做一次**：結果存在本機，之後開啟直接沿用；需要時按「重新解析」。
-- **資料都在本機**：論文、解析、對話、螢光筆與設定都在 `.runtime/`。只有你提問時的內容會送到 Codex／Claude。
+- **資料都在本機**：論文、解析、對話、螢光筆與設定都在 `app\.runtime\`。只有你提問時的內容會送到 Codex／Claude。
 
 ## 快捷鍵
 
@@ -105,6 +120,7 @@
 ## 開發
 
 ```powershell
+cd app
 npm.cmd run check   # 單元測試
 npm.cmd run build   # 建置前端到 dist/
 npm.cmd start       # 啟動服務（PORT 預設 3080）
@@ -112,6 +128,6 @@ npm.cmd start       # 啟動服務（PORT 預設 3080）
 
 ## 授權與致謝
 
-- 本專案以 MIT 授權釋出（`pdf-translate/` 因使用 AGPL-3.0 的 pdf2zh_next，該資料夾為 AGPL-3.0），改編自 [wenhuahuo/PaperReader](https://github.com/wenhuahuo/PaperReader)（MIT）。
+- 本專案以 MIT 授權釋出（`app/pdf-translate/` 因使用 AGPL-3.0 的 pdf2zh_next，該資料夾為 AGPL-3.0），改編自 [wenhuahuo/PaperReader](https://github.com/wenhuahuo/PaperReader)（MIT）。
 - 截圖中的論文為 Gu & Dao, *Mamba: Linear-Time Sequence Modeling with Selective State Spaces*（[arXiv:2312.00752](https://arxiv.org/abs/2312.00752)，CC BY 4.0），節錄前 7 頁作為示範，中文譯文由本工具產生。
 - 使用 [pdf.js](https://github.com/mozilla/pdf.js)、[pdf-lib](https://github.com/Hopding/pdf-lib)、[KaTeX](https://katex.org/)、[MinerU](https://github.com/opendatalab/MinerU) 等開源專案。

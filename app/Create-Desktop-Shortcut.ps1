@@ -1,11 +1,12 @@
-# Create a "Paper Reader" desktop shortcut that starts the app without a console window.
+﻿# Create a "Paper Reader" desktop shortcut that starts the app without a console window.
 $ErrorActionPreference = 'Stop'
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shell = New-Object -ComObject WScript.Shell
 $link = $shell.CreateShortcut((Join-Path $desktop 'Paper Reader.lnk'))
 # Prefer the compiled launcher (Paper Reader.exe); fall back to hidden PowerShell.
-$exe = Join-Path $PSScriptRoot 'Paper Reader.exe'
-if (Test-Path $exe) {
+# The exe normally sits one level up, beside the app\ folder.
+$exe = @((Join-Path (Split-Path -Parent $PSScriptRoot) 'Paper Reader.exe'), (Join-Path $PSScriptRoot 'Paper Reader.exe')) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($exe) {
   $link.TargetPath = $exe
   $link.Arguments = ''
 } else {

@@ -1,4 +1,4 @@
-# Launch Paper Reader as a desktop-style app window (Chrome/Edge --app: no tabs or address bar).
+﻿# Launch Paper Reader as a desktop-style app window (Chrome/Edge --app: no tabs or address bar).
 # Starts the local server hidden when it is not running yet, then opens the app window.
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot

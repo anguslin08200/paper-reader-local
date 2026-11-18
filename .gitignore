@@ -3,7 +3,7 @@ dist/
 # Local data: papers, parses, chats, highlights and settings never leave your computer.
 .runtime/
 .local-check/
-# MinerU installed by setup.ps1 (~1.5 GB with models).
+# MinerU and pdf2zh_next installed by setup.ps1.
 tools/
 .env
 .env.*

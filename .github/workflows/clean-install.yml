@@ -1,0 +1,69 @@
+# Clean-machine test: on a fresh Windows runner, do what a new user does —
+# run the first-time setup, double-click "Paper Reader.exe", and check the app answers.
+# Also checks that PDF parsing (MinerU) and the translation environment work.
+name: Clean install on Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  clean-install:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js already on the runner (setup must upgrade it if older than 24)
+        run: if (Get-Command node -ErrorAction SilentlyContinue) { node --version } else { 'no node' }
+
+      - name: First-time setup (same as the exe's install step, without prompts)
+        run: .\app\setup.ps1 -MinerU -Translate -NoShortcut -NoPrompt
+
+      - name: Unit tests
+        working-directory: app
+        run: |
+          $env:Path = "$env:ProgramFiles\nodejs;" + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+          npm.cmd run check
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Launcher compiles from source
+        run: .\app\scripts\build-launcher.ps1
+
+      - name: Double-click Paper Reader.exe and wait for the app
+        run: |
+          $env:Path = "$env:ProgramFiles\nodejs;" + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+          Start-Process -FilePath '.\Paper Reader.exe'
+          $ok = $false
+          for ($i = 0; $i -lt 90 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 2
+            try { $ok = (Invoke-WebRequest 'http://127.0.0.1:3080/api/health' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {}
+          }
+          if (-not $ok) { Get-Content app\.runtime\server-error.log -ErrorAction SilentlyContinue; throw 'App did not start.' }
+          $page = (Invoke-WebRequest 'http://127.0.0.1:3080/' -UseBasicParsing).Content
+          if ($page -notmatch 'Paper Reader') { throw 'Home page did not load.' }
+          'Paper Reader is running.'
+
+      - name: MinerU parses a PDF
+        run: |
+          $env:Path = "$env:ProgramFiles\nodejs;" + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+          Push-Location app
+          # A one-page test PDF made with pdf-lib (already a dependency).
+          node -e "import('pdf-lib').then(async ({ PDFDocument, StandardFonts }) => { const d = await PDFDocument.create(); const p = d.addPage([612, 792]); const f = await d.embedFont(StandardFonts.TimesRoman); p.drawText('Paper Reader clean install test', { x: 72, y: 700, size: 20, font: f }); p.drawText('This paragraph checks that MinerU can parse a PDF on a fresh machine.', { x: 72, y: 660, size: 12, font: f }); require('fs').writeFileSync('ci-test.pdf', await d.save()); })"
+          Pop-Location
+          $env:MINERU_HOME = (Resolve-Path app\tools\mineru\home).Path
+          & app\tools\mineru\.venv\Scripts\mineru-kit.exe parse app\ci-test.pdf -o ci-test.zip -f zip --tier standard
+          if (-not (Test-Path ci-test.zip)) { throw 'MinerU produced no output.' }
+          'MinerU OK'
+
+      - name: Translation environment is ready
+        run: |
+          & app\tools\pdf2zh\.venv\Scripts\python.exe -c "import pdf2zh_next, babeldoc, opencc; print('pdf2zh_next', pdf2zh_next.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw 'pdf2zh_next import failed.' }
+          if (-not (Select-String -Path app\tools\pdf2zh\.venv\Lib\site-packages\pdf2zh_next\config\translate_engine_model.py -Pattern 'le=1800' -Quiet)) { throw 'Timeout limit patch missing.' }
+          'Translation environment OK'
