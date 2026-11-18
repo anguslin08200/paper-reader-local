@@ -29,12 +29,12 @@ jobs:
             .\app\setup.ps1 -MinerU -Translate -NoShortcut -NoPrompt *>&1 | Tee-Object -FilePath setup.log
             # Setup succeeded; make sure every component is really there, then end this step cleanly.
             foreach ($path in 'app\node_modules', 'app\dist\index.html', 'app\tools\mineru\.venv', 'app\tools\pdf2zh\.venv') {
-              if (-not (Test-Path $path)) { throw "setup finished but $path is missing" }
+              if (-not (Test-Path (Join-Path $env:GITHUB_WORKSPACE $path))) { throw "setup finished but $path is missing" }
             }
             exit 0
           } catch {
             Write-Output "::error::setup failed: $($_.Exception.Message) (at $($_.InvocationInfo.PositionMessage -replace '\r?\n', ' '))"
-            Get-Content setup.log -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.Trim()) { Write-Output "::error::$_" } }
+            Get-Content setup.log -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.Trim()) { Write-Output "::error::$_" } }
             exit 1
           }
 

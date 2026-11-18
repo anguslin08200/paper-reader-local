@@ -5,7 +5,8 @@
 #   -NoShortcut 不建立桌面捷徑；-NoPrompt 不詢問（自動化測試用，例如 GitHub Actions）。
 param([switch]$MinerU, [switch]$Translate, [switch]$NoShortcut, [switch]$NoPrompt)
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+# Work inside app\; the caller's location is restored at the end.
+Push-Location -LiteralPath $PSScriptRoot
 # 中文訊息在舊版主控台也能正確顯示。
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $interactive = -not ($NoPrompt -or $env:CI)
@@ -144,4 +145,5 @@ if (-not $NoShortcut) {
 # Optional checks above (e.g. "codex login status" when not signed in) may leave a non-zero exit code;
 # reaching this line means setup succeeded.
 $global:LASTEXITCODE = 0
+Pop-Location
 Write-Host "`n完成！之後雙擊 Paper Reader.exe 或桌面的「Paper Reader」捷徑即可開啟。" -ForegroundColor Green
