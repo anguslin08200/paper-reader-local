@@ -42,8 +42,15 @@ jobs:
         working-directory: app
         run: |
           $env:Path = "$env:ProgramFiles\nodejs;" + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
-          npm.cmd run check
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # TAP output: each failing test becomes a public ::error:: annotation.
+          $ErrorActionPreference = 'Continue'
+          $out = & node --test --test-reporter=tap 2>&1 | ForEach-Object { "$_" }
+          $code = $LASTEXITCODE
+          $out | Select-Object -Last 40
+          if ($code -ne 0) {
+            $out | Select-String -Pattern '^\s*not ok|error:|AssertionError|expected|actual' | Select-Object -First 9 | ForEach-Object { "::error::$($_.Line.Trim())" }
+            exit 1
+          }
 
       - name: Launcher compiles from source
         run: .\app\scripts\build-launcher.ps1

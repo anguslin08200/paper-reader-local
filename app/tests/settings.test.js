@@ -92,9 +92,9 @@ test('MinerU configuration resolves environment, saved paths, and portable defau
   try {
     for (const key of keys) delete process.env[key];
     const defaults = mineruConfig();
-    // The project may sit at the repository root or in its app/ folder, so a mineru folder one or
-    // two levels up is accepted (the first one that exists, otherwise the nearer one).
-    const bases = [path.resolve('..', 'mineru'), path.resolve('..', '..', 'mineru')];
+    // A copy installed by setup.ps1 (tools/mineru) wins; otherwise the project may sit at the
+    // repository root or in its app/ folder, so a mineru folder one or two levels up is accepted.
+    const bases = [path.resolve('tools', 'mineru'), path.resolve('..', 'mineru'), path.resolve('..', '..', 'mineru')];
     const base = bases.find((candidate) => defaults.executable === path.join(candidate, '.venv', 'Scripts', 'mineru-kit.exe'));
     assert.ok(base, defaults.executable);
     assert.equal(defaults.home, path.join(base, 'home'));
