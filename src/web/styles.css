@@ -380,6 +380,14 @@ body.pip-body #floatAssistant { display: none; }
 @keyframes welcome-in { from { opacity: 0; transform: translate(-50%, -40%) scale(.9); } }
 
 /* 是: memes flying everywhere before the program shuts down. */
-.meme-chaos { position: fixed; inset: 0; z-index: 10000; overflow: hidden; pointer-events: none; }
+/* Captures every pointer event: the program cannot be used any more. */
+.meme-chaos { position: fixed; inset: 0; z-index: 10000; overflow: hidden; cursor: not-allowed; }
+.meme { pointer-events: none; }
 .meme { position: absolute; left: 0; top: 0; font-weight: 900; white-space: nowrap; text-shadow: 3px 3px 0 #000, -2px -2px 0 #fff; will-change: transform; }
-body.meme-shake { transform: translate(4px, -3px) rotate(.4deg); }
+body { transition: transform .25s; }
+body.meme-shake { transform: translate(3px, -2px) rotate(.3deg); }
+
+/* 靈魂拷問: tiny rainbow icon at the top edge, faint until hovered. */
+/* Above the meme lock overlay, so it can always be pressed again. */
+.soul-question { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); z-index: 10001; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e); color: #fff; font-size: 12px; font-weight: 800; line-height: 22px; cursor: pointer; opacity: .45; box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: opacity .2s, transform .2s; }
+.soul-question:hover, .soul-question:focus-visible { opacity: 1; transform: translateX(-50%) scale(1.15); }

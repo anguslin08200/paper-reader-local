@@ -2934,28 +2934,47 @@ window.addEventListener('pagehide', flushReadingPosition);
 
 // ---------------------------------------------------------------------------
 // Startup question (on by default: settings.startupQuestion). Asked on every launch with no explanation.
-// 是 + 確定: memes fly everywhere for a few seconds, then the program shuts down (server stops,
-// window closes). 否 + 確定: a brief 「歡迎使用」; with 「不再顯示」 checked it is never asked again.
+// 是 + 確定: memes fly everywhere and the program is locked (no clicks or keys) until reloaded.
+// 否 + 確定: a brief 「歡迎使用」; with 「不再顯示」 checked it is not asked on later launches.
+// The small 靈魂拷問 icon asks again right away and clears 「不再顯示」 for the next launch.
 // ---------------------------------------------------------------------------
+const startupDialog = $('startupQuestion');
+const startupRadios = [...startupDialog.querySelectorAll('input[name="startupAnswer"]')];
+startupRadios.forEach((radio) => radio.addEventListener('change', () => { $('startupConfirm').disabled = false; }));
+// The question must be answered: Esc cannot dismiss it.
+startupDialog.addEventListener('cancel', (event) => event.preventDefault());
+startupDialog.addEventListener('close', async () => {
+  const answer = startupRadios.find((radio) => radio.checked)?.value;
+  if (answer === 'yes') return lockProgram();
+  // Answering 否 (e.g. via 靈魂拷問 while locked) gives the program back.
+  if (answer === 'no') { unlockProgram?.(); showWelcome(); }
+  if (answer === 'no' && $('startupHide').checked) await saveStartupQuestion(false);
+});
+
+async function saveStartupQuestion(enabled) {
+  try { await request('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startupQuestion: enabled }) }); } catch { /* Kept as is. */ }
+}
+
+// Fresh question each time: nothing selected, 確定 disabled until an answer is picked.
+function showStartupQuestion() {
+  if (startupDialog.open) return;
+  startupRadios.forEach((radio) => { radio.checked = false; });
+  $('startupHide').checked = false;
+  $('startupConfirm').disabled = true;
+  startupDialog.showModal();
+}
+
 async function askStartupQuestion() {
   let settings;
   try { settings = await request('/api/settings'); } catch { return; }
-  if (!settings.startupQuestion) return;
-  const dialog = $('startupQuestion');
-  const radios = [...dialog.querySelectorAll('input[name="startupAnswer"]')];
-  radios.forEach((radio) => radio.addEventListener('change', () => { $('startupConfirm').disabled = false; }));
-  // The question must be answered: Esc cannot dismiss it.
-  dialog.addEventListener('cancel', (event) => event.preventDefault());
-  dialog.addEventListener('close', async () => {
-    const answer = radios.find((radio) => radio.checked)?.value;
-    if (answer === 'yes') { await memeChaos(4500); return shutDownProgram(); }
-    if (answer === 'no') showWelcome();
-    if (answer === 'no' && $('startupHide').checked) {
-      try { await request('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startupQuestion: false }) }); } catch { /* Asked again next time. */ }
-    }
-  }, { once: true });
-  dialog.showModal();
+  if (settings.startupQuestion) showStartupQuestion();
 }
+
+// 靈魂拷問: ask again now, and make sure the question returns on the next launch too.
+$('soulQuestion').addEventListener('click', () => {
+  saveStartupQuestion(true);
+  showStartupQuestion();
+});
 
 // Brief welcome card that fades out by itself (click closes it sooner).
 function showWelcome() {
@@ -2968,51 +2987,59 @@ function showWelcome() {
   window.setTimeout(() => card.remove(), 1800);
 }
 
-// Original emoji/text "brainrot" memes (no third-party images) bouncing around the screen.
+// Original emoji/text "brainrot" memes (no third-party images).
 const MEMES = ['6️⃣7️⃣', 'SIX SEVEN', '67 67 67', '🤲 six 🤲 seven', '🗿', '💀💀💀', 'BRUH', '🫵😂', '🚨 叛徒 🚨',
   '朋友的前女友？！', '🤯', '📉 人品 -67', '😱', 'ERROR 67', '🤡', '⚠️ 友情已斷線', '🔥🔥🔥', '67?!', '🐐❓', '👀'];
-function memeChaos(duration) {
-  return new Promise((resolve) => {
-    const layer = document.createElement('div');
-    layer.className = 'meme-chaos';
-    document.body.append(layer);
-    const width = window.innerWidth; const height = window.innerHeight;
-    // Each meme gets a random position, velocity, spin and size; it bounces off the edges.
-    const memes = Array.from({ length: 42 }, (_, i) => {
-      const element = document.createElement('div');
-      element.className = 'meme';
-      element.textContent = MEMES[i % MEMES.length];
-      element.style.fontSize = `${24 + Math.random() * 56}px`;
-      element.style.color = `hsl(${Math.random() * 360} 95% 55%)`;
-      layer.append(element);
-      const speed = 6 + Math.random() * 14; const angle = Math.random() * Math.PI * 2;
-      return { element, x: Math.random() * width, y: Math.random() * height, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: 0, vr: (Math.random() - 0.5) * 30 };
-    });
-    const started = performance.now();
-    const frame = (now) => {
-      const t = now - started;
-      for (const meme of memes) {
-        meme.x += meme.vx; meme.y += meme.vy; meme.r += meme.vr;
-        if (meme.x < 0 || meme.x > width - 60) meme.vx *= -1;
-        if (meme.y < 0 || meme.y > height - 40) meme.vy *= -1;
-        // The "six seven" hands-weighing bob on top of the bouncing.
-        const bob = Math.sin(t / 90 + meme.r) * 14;
-        meme.element.style.transform = `translate(${meme.x}px, ${meme.y + bob}px) rotate(${meme.r}deg) scale(${1 + Math.sin(t / 120 + meme.vx) * 0.35})`;
-      }
-      layer.style.background = `hsl(${(t / 4) % 360} 90% 50% / .25)`;
-      document.body.classList.toggle('meme-shake', Math.floor(t / 70) % 2 === 0);
-      if (t < duration) requestAnimationFrame(frame);
-      else { document.body.classList.remove('meme-shake'); resolve(); }
-    };
-    requestAnimationFrame(frame);
-  });
-}
 
-async function shutDownProgram() {
-  try { await request('/api/shutdown', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); } catch { /* Already stopped. */ }
-  // App windows opened by the launcher close themselves; a normal browser tab is left blank.
-  window.close();
-  document.body.replaceChildren();
-  document.title = 'Paper Reader 已關閉';
+// 是: memes bounce around and the overlay swallows every click and key press, so the program
+// can no longer be used; only the 靈魂拷問 icon stays clickable (answering 否 unlocks).
+let unlockProgram = null;
+function lockProgram() {
+  if (unlockProgram) return;
+  const layer = document.createElement('div');
+  layer.className = 'meme-chaos';
+  document.body.append(layer);
+  const block = (event) => { event.preventDefault(); event.stopImmediatePropagation(); };
+  for (const type of ['keydown', 'keyup', 'keypress', 'wheel', 'contextmenu']) window.addEventListener(type, block, { capture: true, passive: false });
+  const width = window.innerWidth; const height = window.innerHeight;
+  // Each meme gets a random position, slow velocity and its own tilt phase; it bounces off the edges.
+  const memes = Array.from({ length: 24 }, (_, i) => {
+    const element = document.createElement('div');
+    element.className = 'meme';
+    element.textContent = MEMES[i % MEMES.length];
+    element.style.fontSize = `${30 + Math.random() * 50}px`;
+    element.style.color = `hsl(${Math.random() * 360} 95% 55%)`;
+    layer.append(element);
+    // Slow enough to read: about 70–150 px per second.
+    const speed = 1.2 + Math.random() * 1.3; const angle = Math.random() * Math.PI * 2;
+    return { element, x: Math.random() * width, y: Math.random() * height, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, phase: Math.random() * Math.PI * 2 };
+  });
+  const started = performance.now();
+  const frame = (now) => {
+    const t = now - started;
+    for (const meme of memes) {
+      meme.x += meme.vx; meme.y += meme.vy;
+      if (meme.x < 0 || meme.x > width - 60) meme.vx *= -1;
+      if (meme.y < 0 || meme.y > height - 40) meme.vy *= -1;
+      // The "six seven" hands-weighing bob on top of the bouncing.
+      const bob = Math.sin(t / 220 + meme.phase) * 18;
+      // Tilt swings back and forth, never more than 45° either way.
+      const tilt = Math.sin(t / 500 + meme.phase) * 45;
+      meme.element.style.transform = `translate(${meme.x}px, ${meme.y + bob}px) rotate(${tilt}deg) scale(${1 + Math.sin(t / 600 + meme.phase) * 0.2})`;
+    }
+    layer.style.background = `hsl(${(t / 25) % 360} 90% 50% / .2)`;
+    // Shake for the first 8 seconds, then just drift.
+    document.body.classList.toggle('meme-shake', t < 8000 && Math.floor(t / 250) % 2 === 0);
+    if (running) requestAnimationFrame(frame);
+  };
+  let running = true;
+  requestAnimationFrame(frame);
+  unlockProgram = () => {
+    running = false;
+    layer.remove();
+    document.body.classList.remove('meme-shake');
+    for (const type of ['keydown', 'keyup', 'keypress', 'wheel', 'contextmenu']) window.removeEventListener(type, block, { capture: true });
+    unlockProgram = null;
+  };
 }
 askStartupQuestion();

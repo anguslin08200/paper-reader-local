@@ -61,13 +61,13 @@
 
 需要 Windows、[Node.js](https://nodejs.org/) 24 以上，以及 Chrome 或 Edge。
 
-```powershell
-git clone https://github.com/<你的帳號>/<repo>.git paper-reader
-cd paper-reader
-powershell -ExecutionPolicy Bypass -File .\setup.ps1 -MinerU -Translate
-```
+1. 下載本專案：右上角 **Code → Download ZIP** 後解壓縮，或用 `git clone`。
+2. **雙擊資料夾裡的 `Paper Reader.exe`**（藍底白色「P」圖示）。第一次會詢問是否安裝，按「是」後會開啟安裝視窗，裝好就自動開啟。
+3. 之後每次使用：雙擊 `Paper Reader.exe` 或桌面上的「Paper Reader」捷徑。
 
-`setup.ps1` 會安裝套件、建置、把 MinerU 安裝到 `tools\mineru`（含模型約 1.5 GB）、把整篇翻譯用的 `pdf2zh_next` 安裝到 `tools\pdf2zh`（兩者都可省略，稍後再加參數重跑）、檢查 AI 工具，並在桌面建立「Paper Reader」捷徑。之後雙擊捷徑或執行 `.\Start-Paper-Reader.cmd` 即可（網址 http://127.0.0.1:3080）。
+> 下載 ZIP 的 exe 沒有數位簽章，Windows 可能跳出「Windows 已保護您的電腦」：按「其他資訊 → 仍要執行」。不放心的話可以用 `scripts\build-launcher.ps1` 從 `launcher\PaperReader.cs` 自行編譯（只用 Windows 內建的 C# 編譯器）。
+
+安裝內容（`setup.ps1 -MinerU -Translate`，也可以手動執行）：安裝套件與建置、把 MinerU 安裝到 `tools\mineru`（含模型約 1.5 GB）、把整篇翻譯用的 `pdf2zh_next` 安裝到 `tools\pdf2zh`、檢查 AI 工具，並在桌面建立「Paper Reader」捷徑。程式在 http://127.0.0.1:3080 執行，以沒有網址列的 App 視窗開啟。
 
 ### 需要的外部工具
 
