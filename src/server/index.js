@@ -204,7 +204,7 @@ async function handleApi(req, res, url) {
     sendJson(res, 200, { ok: true });
     return;
   }
-  // 「整個城市 shut down」: stop this local server after replying (the window closes itself).
+  // Startup question answered 是: stop this local server after replying (the window closes itself).
   if (req.method === 'POST' && url.pathname === '/api/shutdown') {
     // A JSON content type forces a CORS preflight, so other websites cannot trigger this.
     if (!String(req.headers['content-type'] || '').startsWith('application/json')) throw new Error('Invalid request');
