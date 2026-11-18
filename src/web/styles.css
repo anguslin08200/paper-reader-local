@@ -373,3 +373,13 @@ body.pip-body #floatAssistant { display: none; }
 .startup-choices label, .startup-hide { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .startup-hide { font-size: 13px; color: #64748b; margin-bottom: 8px; }
 
+
+/* 否: brief welcome. */
+.startup-welcome { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 10000; padding: 22px 46px; border-radius: 16px; background: #fff; color: #1e293b; font-size: 28px; font-weight: 700; letter-spacing: .15em; box-shadow: 0 20px 60px rgba(15, 23, 42, .3); animation: welcome-in .25s ease-out; cursor: pointer; transition: opacity .5s; }
+.startup-welcome.leaving { opacity: 0; }
+@keyframes welcome-in { from { opacity: 0; transform: translate(-50%, -40%) scale(.9); } }
+
+/* 是: memes flying everywhere before the program shuts down. */
+.meme-chaos { position: fixed; inset: 0; z-index: 10000; overflow: hidden; pointer-events: none; }
+.meme { position: absolute; left: 0; top: 0; font-weight: 900; white-space: nowrap; text-shadow: 3px 3px 0 #000, -2px -2px 0 #fff; will-change: transform; }
+body.meme-shake { transform: translate(4px, -3px) rotate(.4deg); }

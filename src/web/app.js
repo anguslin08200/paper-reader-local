@@ -2934,8 +2934,8 @@ window.addEventListener('pagehide', flushReadingPosition);
 
 // ---------------------------------------------------------------------------
 // Startup question (on by default: settings.startupQuestion). Asked on every launch with no explanation.
-// 是 + 確定 shuts the program down (server stops, window closes);
-// 否 + 確定 does nothing, and with 「不再顯示」 checked it is never asked again.
+// 是 + 確定: memes fly everywhere for a few seconds, then the program shuts down (server stops,
+// window closes). 否 + 確定: a brief 「歡迎使用」; with 「不再顯示」 checked it is never asked again.
 // ---------------------------------------------------------------------------
 async function askStartupQuestion() {
   let settings;
@@ -2948,12 +2948,64 @@ async function askStartupQuestion() {
   dialog.addEventListener('cancel', (event) => event.preventDefault());
   dialog.addEventListener('close', async () => {
     const answer = radios.find((radio) => radio.checked)?.value;
-    if (answer === 'yes') return shutDownProgram();
+    if (answer === 'yes') { await memeChaos(4500); return shutDownProgram(); }
+    if (answer === 'no') showWelcome();
     if (answer === 'no' && $('startupHide').checked) {
       try { await request('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startupQuestion: false }) }); } catch { /* Asked again next time. */ }
     }
   }, { once: true });
   dialog.showModal();
+}
+
+// Brief welcome card that fades out by itself (click closes it sooner).
+function showWelcome() {
+  const card = document.createElement('div');
+  card.className = 'startup-welcome';
+  card.textContent = '歡迎使用';
+  card.addEventListener('click', () => card.remove());
+  document.body.append(card);
+  window.setTimeout(() => card.classList.add('leaving'), 1300);
+  window.setTimeout(() => card.remove(), 1800);
+}
+
+// Original emoji/text "brainrot" memes (no third-party images) bouncing around the screen.
+const MEMES = ['6️⃣7️⃣', 'SIX SEVEN', '67 67 67', '🤲 six 🤲 seven', '🗿', '💀💀💀', 'BRUH', '🫵😂', '🚨 叛徒 🚨',
+  '朋友的前女友？！', '🤯', '📉 人品 -67', '😱', 'ERROR 67', '🤡', '⚠️ 友情已斷線', '🔥🔥🔥', '67?!', '🐐❓', '👀'];
+function memeChaos(duration) {
+  return new Promise((resolve) => {
+    const layer = document.createElement('div');
+    layer.className = 'meme-chaos';
+    document.body.append(layer);
+    const width = window.innerWidth; const height = window.innerHeight;
+    // Each meme gets a random position, velocity, spin and size; it bounces off the edges.
+    const memes = Array.from({ length: 42 }, (_, i) => {
+      const element = document.createElement('div');
+      element.className = 'meme';
+      element.textContent = MEMES[i % MEMES.length];
+      element.style.fontSize = `${24 + Math.random() * 56}px`;
+      element.style.color = `hsl(${Math.random() * 360} 95% 55%)`;
+      layer.append(element);
+      const speed = 6 + Math.random() * 14; const angle = Math.random() * Math.PI * 2;
+      return { element, x: Math.random() * width, y: Math.random() * height, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: 0, vr: (Math.random() - 0.5) * 30 };
+    });
+    const started = performance.now();
+    const frame = (now) => {
+      const t = now - started;
+      for (const meme of memes) {
+        meme.x += meme.vx; meme.y += meme.vy; meme.r += meme.vr;
+        if (meme.x < 0 || meme.x > width - 60) meme.vx *= -1;
+        if (meme.y < 0 || meme.y > height - 40) meme.vy *= -1;
+        // The "six seven" hands-weighing bob on top of the bouncing.
+        const bob = Math.sin(t / 90 + meme.r) * 14;
+        meme.element.style.transform = `translate(${meme.x}px, ${meme.y + bob}px) rotate(${meme.r}deg) scale(${1 + Math.sin(t / 120 + meme.vx) * 0.35})`;
+      }
+      layer.style.background = `hsl(${(t / 4) % 360} 90% 50% / .25)`;
+      document.body.classList.toggle('meme-shake', Math.floor(t / 70) % 2 === 0);
+      if (t < duration) requestAnimationFrame(frame);
+      else { document.body.classList.remove('meme-shake'); resolve(); }
+    };
+    requestAnimationFrame(frame);
+  });
 }
 
 async function shutDownProgram() {
