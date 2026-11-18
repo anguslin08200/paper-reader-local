@@ -19,13 +19,21 @@ function Refresh-Path {
   # A newly installed Node.js (and its global npm tools) must win over any older copy on PATH.
   $env:Path = "$env:ProgramFiles\nodejs;$env:APPDATA\npm;$env:Path"
 }
+# External programs (npm, uv, winget, ...) print warnings on stderr. When output is captured,
+# Windows PowerShell turns those lines into errors, which 'Stop' would make fatal, so they run with
+# 'Continue' and success is judged by their exit code ($LASTEXITCODE) instead.
+function Native([scriptblock]$Command) {
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $Command } finally { $ErrorActionPreference = $previous }
+}
 function Node-Major { if (Has 'node') { [int]((node --version).TrimStart('v').Split('.')[0]) } else { 0 } }
 
 Step 'Node.js'
 if ((Node-Major) -lt 24) {
   Warn '找不到 Node.js 24 以上，正在自動安裝 Node.js LTS...'
   if (Has 'winget') {
-    winget install --id OpenJS.NodeJS.LTS -e --silent --accept-source-agreements --accept-package-agreements | Out-Null
+    Native { winget install --id OpenJS.NodeJS.LTS -e --silent --accept-source-agreements --accept-package-agreements | Out-Null }
   } else {
     # 沒有 winget（例如舊版 Windows 或伺服器）：從 nodejs.org 下載官方 LTS 安裝檔。
     $release = (Invoke-RestMethod 'https://nodejs.org/dist/index.json') |
@@ -40,9 +48,9 @@ if ((Node-Major) -lt 24) {
 Ok "Node $(node --version)"
 
 Step '安裝套件並建置'
-& npm.cmd install
+Native { & npm.cmd install }
 if ($LASTEXITCODE -ne 0) { throw 'npm install 失敗。' }
-& npm.cmd run build
+Native { & npm.cmd run build }
 if ($LASTEXITCODE -ne 0) { throw '建置失敗。' }
 Ok '前端已建置（dist/）'
 
@@ -50,11 +58,11 @@ Ok '前端已建置（dist/）'
 function Ensure-Uv {
   if (Has 'uv') { return }
   Warn '找不到 uv，正在安裝...'
-  if (Has 'winget') { winget install --id astral-sh.uv -e --silent --accept-source-agreements --accept-package-agreements | Out-Null }
+  if (Has 'winget') { Native { winget install --id astral-sh.uv -e --silent --accept-source-agreements --accept-package-agreements | Out-Null } }
   Refresh-Path
   if (-not (Has 'uv')) {
     # 沒有 winget 時改用 uv 官方安裝腳本（裝到使用者資料夾，不需要管理員權限）。
-    Invoke-RestMethod 'https://astral.sh/uv/install.ps1' | Invoke-Expression
+    Native { Invoke-RestMethod 'https://astral.sh/uv/install.ps1' | Invoke-Expression }
     Refresh-Path
     $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
   }
@@ -68,14 +76,15 @@ if ($MinerU) {
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   Push-Location $root
   try {
-    & uv venv .venv --python 3.12
+    Native { & uv venv .venv --python 3.12 }
+    if ($LASTEXITCODE -ne 0) { throw 'Python 環境建立失敗。' }
     $env:VIRTUAL_ENV = Join-Path $root '.venv'
-    & uv pip install -U 'mineru>=4.0,<5'
+    Native { & uv pip install -U 'mineru>=4.0,<5' }
     if ($LASTEXITCODE -ne 0) { throw 'MinerU 安裝失敗。' }
     Remove-Item Env:VIRTUAL_ENV
     $env:MINERU_HOME = Join-Path $root 'home'
     # 下載 standard 等級模型（約 1.4 GB，只需一次）。
-    & (Join-Path $root '.venv\Scripts\mineru-kit.exe') models download --tier standard
+    Native { & (Join-Path $root '.venv\Scripts\mineru-kit.exe') models download --tier standard }
     if ($LASTEXITCODE -ne 0) { throw 'MinerU 模型下載失敗。' }
     Ok 'MinerU 已安裝，Paper Reader 會自動找到 tools\mineru。'
   } finally { Pop-Location }
@@ -90,9 +99,10 @@ if ($Translate) {
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   Push-Location $root
   try {
-    & uv venv .venv --python 3.12
+    Native { & uv venv .venv --python 3.12 }
+    if ($LASTEXITCODE -ne 0) { throw 'Python 環境建立失敗。' }
     $env:VIRTUAL_ENV = Join-Path $root '.venv'
-    & uv pip install -r (Join-Path $PSScriptRoot 'pdf-translate\requirements.txt')
+    Native { & uv pip install -r (Join-Path $PSScriptRoot 'pdf-translate\requirements.txt') }
     if ($LASTEXITCODE -ne 0) { throw 'pdf2zh_next 安裝失敗。' }
     Remove-Item Env:VIRTUAL_ENV
     # pdf2zh_next 把 CLI 翻譯逾時上限設為 300 秒；本機模型（以及橋接程式的 1800 秒請求）需要更久，
@@ -111,16 +121,16 @@ if ($Translate) {
 Step 'AI 助手（使用你既有的訂閱，不需要 API key）'
 if (-not (Has 'codex') -and -not (Has 'claude')) {
   Warn '找不到 Codex CLI 或 Claude Code，正在安裝 Codex CLI...'
-  & npm.cmd install -g @openai/codex
+  Native { & npm.cmd install -g @openai/codex }
   Refresh-Path
 }
 if (Has 'codex') {
   Ok '已找到 Codex CLI'
   # 尚未登入時，在這個視窗直接引導登入（會開啟瀏覽器，用 ChatGPT 帳號登入）。
-  & codex login status *> $null
+  Native { & codex login status *> $null }
   if ($LASTEXITCODE -ne 0 -and $interactive) {
     $answer = Read-Host '  要現在登入 Codex（ChatGPT 帳號）嗎？[Y/n]'
-    if ($answer -notmatch '^[nN]') { & codex login }
+    if ($answer -notmatch '^[nN]') { Native { & codex login } }
   } elseif ($LASTEXITCODE -ne 0) { Warn 'Codex 尚未登入，之後執行：codex login' }
 } else { Warn '找不到 Codex CLI：npm install -g @openai/codex，然後 codex login' }
 if (Has 'claude') { Ok '已找到 Claude Code' } else { Warn '找不到 Claude Code（選用）：https://docs.anthropic.com/claude-code' }
